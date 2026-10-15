@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Paths the FileProvider may expose so the agent's output can be handed to another app.
+
+  The Debian workspace needs a <root-path>: it is a proot chroot living at
+  $PREFIX/var/lib/proot-distro/containers/debian/rootfs/root, i.e. below our private files dir but
+  addressed from the filesystem root.
+-->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="termux_home" path="home/" />
+    <files-path name="termux_tmp" path="usr/tmp/" />
+    <root-path
+        name="debian_workspace"
+        path="data/data/com.termux/files/usr/var/lib/proot-distro/containers/debian/rootfs/root/" />
+</paths>

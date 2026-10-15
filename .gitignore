@@ -1,0 +1,35 @@
+# Build artifacts
+.gradle/
+build/
+*/build/
+local.properties
+.cxx/
+
+# Cached Termux bootstrap archives (large; re-fetch with scripts/fetch-bootstraps.ps1)
+.cache/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Kotlin build session cache (distinct from .gradle/)
+.kotlin/
+
+# Built packages. The debug APK is ~79 MB on its own, which is most of the reason a naive
+# `git add .` here produces a repository GitHub rejects. Published APKs are handed over
+# as opencodeN.apk rather than committed.
+*.apk
+*.aab
+
+# Secrets. This repository is public, so anything committed here is world-readable — and
+# deleting the file later does not help, because Git keeps it in history.
+.env
+.env.local
+*.pem
+*.keystore
+*.jks

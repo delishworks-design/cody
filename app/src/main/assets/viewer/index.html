@@ -1,0 +1,62 @@
+<!doctype html>
+<!--
+  Minimal 3D preview for .glb files.
+
+  Everything is served from the same origin by ViewerServer (the bundled JS plus the model itself),
+  which is what keeps WebGL texture loading free of cross-origin restrictions.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>3D model</title>
+<script type="module" src="./model-viewer.min.js"></script>
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; height: 100%; background: #0B0E14; overflow: hidden; }
+  model-viewer { width: 100%; height: 100%; background: #0B0E14; --poster-color: transparent; }
+  #status {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    color: #97A0B8; font: 13px/1.6 system-ui, -apple-system, sans-serif;
+    text-align: center; padding: 24px; white-space: pre-line;
+  }
+</style>
+</head>
+<body>
+<model-viewer id="mv"
+               src="./model.glb"
+               camera-controls
+               shadow-intensity="1"
+               exposure="1"
+               interaction-prompt="none"
+               style="width:100%;height:100%"></model-viewer>
+<div id="status">Loading model…</div>
+<script type="module">
+  const mv = document.getElementById('mv');
+  const status = document.getElementById('status');
+
+  // Without a WebGL context <model-viewer> cannot render and the page would sit blank, which
+  // reads as "the app is broken". Say what is actually wrong instead.
+  const probe = document.createElement('canvas');
+  const gl = probe.getContext('webgl2') || probe.getContext('webgl');
+  if (!gl) {
+    status.textContent = 'This device has no WebGL support, so 3D preview is unavailable.';
+    status.style.whiteSpace = 'pre-line';
+  }
+
+  mv.addEventListener('load', () => status.remove());
+  mv.addEventListener('error', (event) => {
+    status.textContent = 'Could not load this model.\n' + (event?.detail?.type || 'unknown error');
+  });
+  // A big .glb over loopback is still a large download; say so instead of looking stuck.
+  setTimeout(() => {
+    if (!mv.loaded) status.textContent = 'Still loading… a large model can take a while.';
+  }, 8000);
+
+  // No `auto-rotate`: it runs a continuous requestAnimationFrame loop for as long as the viewer
+  // is open, which keeps the GPU process permanently busy. On devices with a software or emulated
+  // GL stack that starves the rest of the window from ever painting, and on phones it is a
+  // constant battery drain for an animation nobody asked for. Dragging to orbit works.
+</script>
+</body>
+</html>

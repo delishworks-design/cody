@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Dictation into the composer. Optional: the mic button is hidden when there is no recogniser. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+
+    <application
+        android:allowBackup="false"
+        android:extractNativeLibs="true"
+        android:icon="@drawable/ic_launcher"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.OpenCode"
+        android:networkSecurityConfig="@xml/network_security_config"
+        tools:targetApi="34">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|density|screenLayout|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".terminal.TerminalActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|density|screenLayout|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.OpenCode.Terminal" />
+
+        <service
+            android:name=".shell.OpenCodeService"
+            android:exported="false" />
+
+        <!--
+            Notification actions (approve / reject) and reboot recovery.
+
+            A proot container does not survive a reboot, but a prompt that was in flight does - it is
+            written to disk before the request goes out. BOOT_COMPLETED restarts the service, which
+            re-reads it. The RECEIVE_BOOT_COMPLETED permission is what Android requires for that.
+        -->
+        <receiver
+            android:name=".shell.AgentActionReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="com.termux.app.action.ALLOW_ONCE" />
+                <action android:name="com.termux.app.action.ALLOW_ALWAYS" />
+                <action android:name="com.termux.app.action.REJECT" />
+                <action android:name="com.termux.app.action.ANSWER" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+            android:name=".ui.screens.ImageViewerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|density|screenLayout|smallestScreenSize"
+            android:theme="@style/Theme.OpenCode.Terminal" />
+
+        <activity
+            android:name=".web.WebViewActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|keyboardHidden|uiMode|density|screenLayout|smallestScreenSize"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Lets the agent's output (zip/apk/images) be handed to other apps through the share sheet. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.termux.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+    </application>
+
+</manifest>

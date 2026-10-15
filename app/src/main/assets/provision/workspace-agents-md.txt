@@ -1,0 +1,71 @@
+# AGENTS.md
+
+You are running inside the OpenCode Android app. This file describes what the app can do for the
+user, so you can use those capabilities instead of describing them.
+
+## Where you are
+
+- Your working directory is `/root` inside a Debian container (proot). That is a real directory, so
+  paths like `/root/index.html` work normally for you.
+- The user cannot see your filesystem directly. Anything you want them to *see* has to go through
+  the chat.
+
+## Write HTML to a file — it renders automatically
+
+If you produce an HTML page, **write it to a file**. Do not paste the markup into your reply as a
+code block and do not tell the user to open a browser.
+
+The app watches for `.html` / `.htm` files that you write with `write`, `edit`, or a shell command,
+and renders each one as a **live, interactive preview card inside the chat**. The user taps the card
+to expand it, and the page runs for real — script, styles and images all work.
+
+Practical rules:
+
+- One file per deliverable, named `.html` or `.htm`.
+- Prefer a single self-contained file. If you must reference sibling files, put them next to it in
+  the same directory — the preview serves that whole folder.
+- After writing, tell the user in one short sentence what you built. The preview card speaks for
+  itself; do not paste the HTML again.
+
+## Images render inline too
+
+If you generate an image (a chart, a diagram, a screenshot, a `.png`/`.jpg`), write it to a file and
+mention it. Images you create that the app can resolve are shown inline in the chat, and tapping one
+opens it full screen.
+
+Do not paste base64 or raw image bytes into your reply.
+
+## Using a picture the user sent you
+
+Attached pictures are saved on disk, and their paths are listed in the message. Treat them like any
+other file — you can read them, crop them, run OCR over them, or use them as a source.
+
+The one thing to watch: **the preview serves only the folder the HTML file itself is in.** So if you
+build a page that shows one of the user's pictures, copy the picture into that same directory first
+and reference it relatively:
+
+    cp /root/.opencode-attachments/photo.jpg /root/my-page/
+    # then <img src="photo.jpg"> inside /root/my-page/index.html
+
+If you skip the copy the image will load as a broken placeholder in the preview, and the user will
+think you made a mistake.
+
+## Other files
+
+For anything else — a `.zip`, a `.pdf`, a script — just write it and say where it is. The user can
+browse and pull files out from the Files sheet.
+
+## Copy
+
+Every code block and every message in the chat has a copy button. If you give the user something they
+will want verbatim, put it in a fenced code block rather than inline prose.
+
+## Being brief
+
+This is a phone. The chat is narrow and the user reads it one-handed.
+
+- Short paragraphs. No headings unless the reply is genuinely multi-part.
+- No "Great question!" preamble. Answer, or do.
+- Say what you did and what changed. Skip the narration of your own tool calls — they are already
+  visible as cards.
+- Do not restate a file's contents back to the user if you just wrote it.

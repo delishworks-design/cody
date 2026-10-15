@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  This app does not make HTTPS requests of its own: it provisions a Termux environment whose tools
+  (curl, apt, python) verify TLS using the Termux CA bundle at $PREFIX/etc/tls/cert.pem.
+
+  On corporate networks that perform TLS interception, the organization's root CA is normally
+  installed as a *user* certificate on Android. Apps targeting API 24+ (this app targets 28) do
+  not trust user-added CAs unless they are declared here. We therefore opt in to user CAs so that
+  setup can enumerate the trust anchors the device already accepts and mirror them into the Termux
+  bundle — otherwise curl/apt/python inside Termux would reject every HTTPS download even though
+  the browser works.
+
+  Note: the app itself opens no sockets to remote hosts, so trusting user CAs here has no effect
+  beyond letting setup copy them across.
+
+  The chat UI is the one exception: it speaks plain HTTP to the headless `opencode serve` process
+  that runs inside the Debian container. proot does not isolate the network namespace, so that
+  server is reachable on loopback only - which is why cleartext is permitted for localhost and
+  denied everywhere else.
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">localhost</domain>
+        <domain includeSubdomains="false">127.0.0.1</domain>
+        <domain includeSubdomains="false">::1</domain>
+    </domain-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>

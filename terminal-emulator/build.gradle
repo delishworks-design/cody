@@ -1,0 +1,80 @@
+plugins {
+    id 'com.android.library'
+}
+
+// ndk-build cannot handle spaces in paths, and this project may live under a path with spaces.
+// We therefore cross-compile libtermux.so in a space-free temporary directory and package the
+// resulting .so files as prebuilt jniLibs (see buildTermuxJni below).
+android {
+    namespace 'com.termux.terminal'
+    compileSdk 35
+    ndkVersion '27.2.12479018'
+
+    defaultConfig {
+        minSdk 24
+    }
+
+    sourceSets {
+        main {
+            jniLibs.srcDirs += [file("$buildDir/termux-jni/libs")]
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
+tasks.register('buildTermuxJni') {
+    description = 'Cross-compiles libtermux.so (PTY/JNI) for each ABI in a space-free temp directory.'
+    def cppDir = file('src/main/jni')
+    def libsDir = new File("$buildDir/termux-jni/libs")
+    inputs.dir(cppDir)
+    outputs.dir(libsDir)
+    doLast {
+        def ndk = android.ndkDirectory
+        def ndkBuild = new File(ndk, 'ndk-build.cmd')
+        if (!ndkBuild.exists()) ndkBuild = new File(ndk, 'ndk-build')
+        if (!ndkBuild.exists()) throw new GradleException("ndk-build not found under ${ndk}")
+
+        def workRoot = new File(System.getProperty('java.io.tmpdir'), 'opencode-termux-jni-build')
+        delete(workRoot)
+        def workJni = new File(workRoot, 'jni')
+        workJni.mkdirs()
+        copy { from cppDir; into workJni }
+
+        def outDir = new File(workRoot, 'obj')
+        def tmpLibs = new File(workRoot, 'libs')
+        tmpLibs.mkdirs()
+
+        def args = [ndkBuild.absolutePath,
+                    "NDK_PROJECT_PATH=${workRoot.absolutePath}".toString(),
+                    "NDK_OUT=${outDir.absolutePath}".toString(),
+                    "NDK_LIBS_OUT=${tmpLibs.absolutePath}".toString(),
+                    "APP_ABI=arm64-v8a x86_64",
+                    "APP_PLATFORM=android-24"]
+        logger.lifecycle("Running ndk-build (terminal-emulator) in ${workRoot}")
+        def proc = args.execute(null, workJni)
+        proc.consumeProcessOutputStream(System.out)
+        proc.consumeProcessErrorStream(System.err)
+        def code = proc.waitFor()
+        if (code != 0) throw new GradleException("ndk-build failed with exit code ${code}")
+
+        copy {
+            from tmpLibs
+            into libsDir
+            duplicatesStrategy = DuplicatesStrategy.INCLUDE
+        }
+    }
+}
+
+tasks.configureEach { t ->
+    if (t.name == 'preBuild' || (t.name.startsWith('merge') && t.name.contains('JniLibFolders'))) {
+        t.dependsOn 'buildTermuxJni'
+    }
+}
