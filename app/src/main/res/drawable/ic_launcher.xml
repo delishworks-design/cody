@@ -6,14 +6,13 @@
     in the drawer header and on the initialising screen (ui/screens/CodyMark.kt) — kept in step by
     hand because a VectorDrawable cannot call a composable.
 
-    Geometry mirrors CodyMark.drawFace, expressed on a 108-unit viewport with the tile filling the
-    adaptive-icon safe zone:
+    Geometry mirrors CodyMark.drawFace EXACTLY, on a 108-unit viewport with the tile filling
+    21..87 (66 units = one CodyMark "side", centre 54):
 
-      eye radius   5.1, spread 9.9, eye centre y 40.4
-      smile        18.4 wide, 14.0 tall, 18..158 degrees, stroke 3.5
-
-    The gradient is a real <gradient> fill rather than the three stacked flat paths an earlier
-    version used; that trick bands visibly once the launcher renders the icon at full size.
+      eye radius   0.095*66 = 6.3, spread 0.165*66 = 10.9, eye centre y 54-0.06*66 = 50.0
+      smile        0.34*66 = 22.4 wide, 0.26*66 = 17.2 tall, stroke 0.065*66 = 4.3
+      corners      0.3*66 = 19.8 (same 0.3 ratio CodyMark clips to)
+      gradient     horizontal, same 3 stops (Compose linearGradient default runs left to right)
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
@@ -22,14 +21,14 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Base tile. Corner radius 12 on a 66-wide square is the same 0.3 ratio CodyMark clips to. -->
-    <path android:pathData="M33,21 h42 a12,12 0 0 1 12,12 v42 a12,12 0 0 1 -12,12 h-42 a12,12 0 0 1 -12,-12 v-42 a12,12 0 0 1 12,-12 z">
+    <!-- Base tile. Corner radius 19.8 on a 66-wide square = the 0.3 ratio CodyMark clips to. -->
+    <path android:pathData="M40.8,21 h26.4 a19.8,19.8 0 0 1 19.8,19.8 v26.4 a19.8,19.8 0 0 1 -19.8,19.8 h-26.4 a19.8,19.8 0 0 1 -19.8,-19.8 v-26.4 a19.8,19.8 0 0 1 19.8,-19.8 z">
         <aapt:attr name="android:fillColor">
             <gradient
                 android:startX="21"
-                android:startY="21"
+                android:startY="54"
                 android:endX="87"
-                android:endY="87"
+                android:endY="54"
                 android:type="linear">
                 <item android:offset="0.0" android:color="#FF4A8CFF" />
                 <item android:offset="0.5" android:color="#FF7FB4FF" />
@@ -39,13 +38,13 @@
     </path>
 
     <!-- Two eyes. Circles only — that is the whole point of the mark. -->
-    <path android:fillColor="#FFFFFFFF" android:pathData="M44.1,40.4 m-5.1,0 a5.1,5.1 0 1,0 10.2,0 a5.1,5.1 0 1,0 -10.2,0" />
-    <path android:fillColor="#FFFFFFFF" android:pathData="M63.9,40.4 m-5.1,0 a5.1,5.1 0 1,0 10.2,0 a5.1,5.1 0 1,0 -10.2,0" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M36.8,50 m-6.3,0 a6.3,6.3 0 1,0 12.6,0 a6.3,6.3 0 1,0 -12.6,0" />
+    <path android:fillColor="#FFFFFFFF" android:pathData="M58.6,50 m-6.3,0 a6.3,6.3 0 1,0 12.6,0 a6.3,6.3 0 1,0 -12.6,0" />
 
-    <!-- Smile: the lower arc of an 18.4 x 14.0 ellipse centred at (54, 47.4). -->
+    <!-- Smile: lower arc of the 22.4 x 17.2 CodyMark ellipse, stroked round. -->
     <path
-        android:pathData="M46.4,47.0 Q54,58.2 61.6,47.0"
+        android:pathData="M43.5,64.2 Q54,75.5 64.5,64.2"
         android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="3.5"
+        android:strokeWidth="4.3"
         android:strokeLineCap="round" />
 </vector>
