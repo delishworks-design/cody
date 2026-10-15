@@ -1,0 +1,43 @@
+# Normalise line endings on checkin, and keep them LF in the working tree too.
+#
+# This repository ships shell scripts — app/src/main/assets/provision/*.sh — and a CRLF in any of
+# them breaks the provisioning run on device with an error that points nowhere near the real cause
+# ("/usr/bin/env^M: bad interpreter"). Git for Windows would otherwise convert them on checkout.
+#
+# `text=auto` lets Git detect binary content, and the explicit rules below stop it guessing wrong for
+# the file types where a wrong guess is expensive.
+
+* text=auto
+
+*.sh text eol=lf
+*.kt text eol=lf
+*.java text eol=lf
+*.gradle text eol=lf
+*.kts text eol=lf
+*.xml text eol=lf
+*.json text eol=lf
+*.jsonc text eol=lf
+*.md text eol=lf
+*.txt text eol=lf
+*.properties text eol=lf
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Build outputs and archives: never touched, never line-ending processed.
+*.apk binary
+*.aab binary
+*.aar binary
+*.jar binary
+*.zip binary
+*.so binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.ttf binary
+*.otf binary
+
+# The bundled model-viewer build is minified JavaScript with baked-in string literals.
+# Left unnormalised so its embedded notices stay byte-identical to upstream.
+app/src/main/assets/viewer/model-viewer.min.js -text

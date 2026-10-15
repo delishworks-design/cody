@@ -1,0 +1,136 @@
+Cody — an Android app that runs the opencode coding agent on-device.
+
+Copyright (C) 2026  delishworks-design
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See LICENSE for the full text.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE. See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program. If not, see <https://www.gnu.org/licenses/>.
+
+
+================================================================================
+THIRD-PARTY NOTICES
+================================================================================
+
+This distribution bundles third-party code and assets. The relevant licences are
+reproduced in LICENSES/.
+
+
+--------------------------------------------------------------------------------
+1. Termux  (terminal-emulator/, terminal-view/)
+--------------------------------------------------------------------------------
+
+    Copyright (C) Termux
+    https://github.com/termux/termux-app
+    Licence: GNU General Public License v3.0 only
+
+Vendored from termux/termux-app at tag v0.118.3. Unmodified except where noted in
+the module README.
+
+The Termux project states its licence as "GPLv3 only" with one exception: code
+from the Android Open Source Project's terminal emulator is included in these
+two modules. That exception is reproduced below.
+
+
+--------------------------------------------------------------------------------
+2. Terminal Emulator for Android  (part of terminal-emulator/, terminal-view/)
+--------------------------------------------------------------------------------
+
+    Copyright (c) 2005-2008, The Android Open Source Project
+
+    Licensed under the Apache License, Version 2.0 (the "License");
+    you may not use this file except in compliance with the License.
+    Unless required by applicable law or agreed to in writing, software
+    distributed under the License is distributed on an "AS IS" BASIS,
+    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+    See the License for the specific language governing permissions and
+    limitations under the License.
+
+Original work: https://github.com/jackpal/Android-Terminal-Emulator
+Licence: Apache License 2.0 — full text in LICENSES/Apache-2.0.txt
+
+The notice above is reproduced verbatim from that project's NOTICE file, as
+required by section 4(d) of the Apache License 2.0.
+
+Apache-2.0 is compatible with GPLv3 in one direction only, so the combined work
+as distributed here is licensed under GPLv3 (see LICENSE). The Apache-licensed
+components remain available under Apache-2.0.
+
+
+--------------------------------------------------------------------------------
+3. model-viewer  (app/src/main/assets/viewer/)
+--------------------------------------------------------------------------------
+
+    Copyright 2017 Google LLC
+    Copyright 2019, 2020, 2021, 2022, 2023 Google LLC. All Rights Reserved.
+
+    SPDX-License-Identifier: BSD-3-Clause
+
+    https://github.com/google/model-viewer
+
+A prebuilt ES module, bundled so the 3D preview works with no network at all.
+Full text of the BSD-3-Clause licence as it applies:
+
+    Redistribution and use in source and binary forms, with or without
+    modification, are permitted provided that the following conditions are met:
+
+    1. Redistributions of source code must retain the above copyright notice,
+       this list of conditions and the following disclaimer.
+    2. Redistributions in binary form must reproduce the above copyright notice,
+       this list of conditions and the following disclaimer in the documentation
+       and/or other materials provided with the distribution.
+    3. Neither the name of the copyright holder nor the names of its contributors
+       may be used to endorse or promote products derived from this software
+       without specific prior written permission.
+
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+    AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+    IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+    ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE
+    LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+    CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+    SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+    INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+    CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+    ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+    POSSIBILITY OF SUCH DAMAGE.
+
+
+--------------------------------------------------------------------------------
+4. Three.js  (bundled inside model-viewer.min.js)
+--------------------------------------------------------------------------------
+
+    Copyright (c) 2010-2023 Three.js Authors
+
+    SPDX-License-Identifier: MIT
+
+Bundled transitively by the model-viewer build; not vendored directly. MIT
+requires the notice above be retained, which the upstream bundle does. MIT is
+compatible with GPLv3.
+
+
+--------------------------------------------------------------------------------
+5. opencode  (downloaded at runtime, not bundled)
+--------------------------------------------------------------------------------
+
+    https://github.com/sst/opencode — MIT
+
+The opencode agent is installed on-device during setup by
+app/src/main/assets/provision/05-install-opencode.sh. It is not part of this
+repository or of any APK built from it. Its licence governs the copy your
+device downloads.
+
+
+--------------------------------------------------------------------------------
+6. proot-distro, Debian, and the Termux packages
+--------------------------------------------------------------------------------
+
+Installed on-device during setup. Not bundled. Each is licensed by its own
+upstream project.

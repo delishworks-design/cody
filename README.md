@@ -1,7 +1,12 @@
-# OpenCode for Android
+# Cody
 
 An Android app that brings the [opencode](https://opencode.ai) AI coding agent to your phone, with
 the whole runtime self-contained on the device. No server, no root, no cloud account.
+
+> Previously called *OpenCode for Android*. It is still the opencode agent — only the app's own
+> name and branding changed to **Cody**, so the launcher, the in-app mark and this README all agree.
+> See [Why is the applicationId `com.termux`?](#why-is-the-applicationid-comtermux) for why the
+> *package* name could not follow.
 
 ## What this is
 
@@ -10,9 +15,9 @@ Termux backend** as its workspace and runs **opencode inside a Debian container*
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ OpenCode for Android (Kotlin · Jetpack Compose UI)            │
+│ Cody (Kotlin · Jetpack Compose UI)                             │
 │                                                               │
-│  Home / Setup            TerminalActivity (TerminalView)      │
+│  Chat (default)          TerminalActivity (TerminalView)      │
 │───────────────────────────────────────────────────────────────│
 │              OpenCodeService (foreground service)             │
 │───────────────────────────────────────────────────────────────│
@@ -40,8 +45,16 @@ ads.
 
 - **Chat interface** (the default): a Claude Code-style conversation view with streaming replies,
   collapsible reasoning, live tool-call cards and a composer. The raw shell is one tap away.
-- **Model picker**: every connected provider's models, with a `no images` marker on text-only ones,
-  selectable per prompt and restored when you reopen a session.
+- **Model picker**: free models only. A search field, a `no images` marker on text-only ones, and an
+  **Auto · free** entry at the top that picks the strongest available free model for you. Selection
+  is per session and restored when you reopen it.
+- **Drawer**: recent conversations with relative timestamps, swipe-to-delete, long-press rename
+  (the rename is written through to both the local store and `PATCH /session/:id`, so it survives a
+  restart and shows on the server). Also holds Files, *Connect a provider* and Setup.
+- **Dictation**: on-device Whisper, installed by an optional provisioning step. Tap the mic to start,
+  tap again to stop — the transcript lands in the composer with no intermediate "transcribing" state.
+- **Stays awake while you use it**: `FLAG_KEEP_SCREEN_ON` rather than a `WakeLock`, so there is no
+  permission to request and it cannot outlive the app.
 - **Agent / mode switcher**: `build`, `plan` and anything else registered in `GET /agent`, sent along
   with each prompt.
 - **Attachments**: attach a picture or any document from the composer; the bytes are inlined as a
@@ -65,18 +78,23 @@ ads.
   that only exists on your machine — see [Corporate networks](#corporate-networks--tls-inspection).
 - Full terminal: extra-keys bar (Ctrl, Alt, Shift, Esc, Tab, arrows, Home/End, Ctrl+C/D/Z), pinch to
   zoom, Ctrl-C shortcut, copy & paste.
-- Launch buttons for **chat**, the **opencode TUI**, a **Termux shell**, and a **Debian login shell**.
+- The **opencode TUI**, a **Termux shell**, and a **Debian login shell** are all reachable from the
+  drawer when you want the raw thing instead of the chat UI.
 - Foreground service keeps your sessions alive in the background.
-- Dark, modern UI in the spirit of the opencode brand.
+- Dark UI built around the Cody mark — a rounded square with two eyes and a smile, drawn once and
+  reused by the drawer, the initialising screen and the launcher icon.
 
 ## Requirements
 
 - Android 7.0 (API 24) or newer. A **64-bit device** (arm64-v8a) is strongly recommended.
 - ~1.5 GB free storage for the two root filesystems plus opencode.
 - Internet connection for the initial setup.
-- No API key needed to try it: OpenCode's bundled **Zen** models (`big-pickle`,
-  `ling-3.0-flash-fin-free`) are free and already connected. Bring your own provider key later for
-  Anthropic, OpenAI, Gemini or a local model — that is configured inside opencode, on device.
+- No API key needed to try it. Three providers are connected out of the box — **Kilo Gateway**
+  (anonymous access to its `:free` models, no account), plus opencode's own and xkiro — which is
+  roughly 1100 free models. The picker lists **free models only**, and the default selection is
+  **Auto · free**, which picks the strongest available free model and rotates to the next one when
+  the current one is rate-limited. Bring a provider key later if you want paid models; that is
+  configured inside opencode, on device, under *Connect a provider* in the drawer.
 
 ## Building
 
@@ -124,24 +142,38 @@ The APK lands in `app/build/outputs/apk/debug/app-debug.apk`.
 The Termux bootstrap binaries and shared libraries are compiled with the absolute prefix
 `/data/data/com.termux/files/usr` **hard-coded**. For the embedded backend to work, the app's private
 data directory must therefore be `/data/data/com.termux`. This is why the internal applicationId is
-`com.termux` even though the app is branded **OpenCode**.
+`com.termux` even though the app is branded **Cody**.
 
 Consequences:
 
 - Only one app on the device can own `com.termux`. Do not install this alongside the real Termux app.
-- The app is branded "OpenCode" in the launcher and UI; only the package identifier is `com.termux`.
+- The app is branded "Cody" in the launcher and UI; only the package identifier is `com.termux`.
+- `targetSdk` is pinned to **28** and must stay there. On API 29+ an app may not `exec()` files from
+  its own writable data directory — and the entire Termux rootfs lives in exactly that directory, so
+  raising it breaks `bash`, `apt`, `proot` and therefore opencode.
 
 If you want a different applicationId you must rebuild the Termux bootstrap packages with the new
 prefix — see the [Termux packaging docs](https://github.com/termux/termux-packages).
 
 ## First run
 
-1. Open the app and tap **Finish setup** on the home screen.
-2. Wait for the embedded Termux environment to unpack and for Debian + opencode to install. The log
-   pane shows exactly what is happening.
-3. When the status turns green, tap **Launch opencode**.
-4. Inside opencode, configure your provider/API key (`/models` or the provider login flow).
-5. Optional: use **Termux shell** for apt/node tooling, or **Debian** for a plain Debian bash.
+There is no onboarding and no setup button to hunt for. The app goes straight to the chat screen and
+provisions itself in the background:
+
+1. Open the app. The chat screen appears immediately; provisioning starts behind it.
+2. Wait for the embedded Termux environment to unpack and for Debian + opencode to install. The
+   Cody mark blinks on the initialising screen while this happens — a fresh install genuinely takes
+   a few minutes, and a silent wait reads as a hang.
+3. The screen hands over to the chat as soon as the server answers. Type and send.
+4. Nothing to configure for a first reply — free models are already connected. To add a paid
+   provider, open the drawer and use *Connect a provider*.
+
+If provisioning is interrupted, it resumes rather than restarting: the provisioner records how far it
+got and skips completed steps on the next launch. *Setup* in the drawer re-runs it on demand, and the
+**Run setup again** button on the ready panel forces a fresh pass.
+
+Optional: a **Termux shell** and a **Debian login shell** are reachable from the drawer for
+apt/node tooling and a plain Debian bash respectively.
 
 ## Environment provisioning
 
@@ -350,13 +382,32 @@ opencode-android/
 └── settings.gradle
 ```
 
-## Licenses and credits
+## Licence
 
-- **opencode** — MIT, by the anomalyco/sst team. <https://github.com/sst/opencode>
-- **Termux** (`terminal-emulator`, `terminal-view`, bootstrap) — GPLv3, by the Termux team.
-  <https://github.com/termux/termux-app>
-- **proot-distro** — part of the Termux packages, GPL.
+Cody is licensed under the **GNU General Public License v3.0 only** — see [`LICENSE`](LICENSE).
+Third-party attributions are in [`NOTICE`](NOTICE), with full texts in [`LICENSES/`](LICENSES/).
 
-The `terminal-emulator` and `terminal-view` modules are vendored from Termux v0.118.3 under the terms
-of the GPLv3. This app is an independent, community-style client and is **not affiliated with
-opencode**.
+The reason this project is GPLv3 rather than something more permissive is the vendored terminal code:
+`terminal-emulator` and `terminal-view` come from Termux v0.118.3, which is GPLv3-only. Apache-2.0
+is compatible with GPLv3 in one direction only, so distributing the combined work obliges GPLv3.
+
+## Third-party credits
+
+| Component | Where | Licence |
+| --- | --- | --- |
+| **Termux** | `terminal-emulator/`, `terminal-view/` | GPLv3-only — <https://github.com/termux/termux-app> |
+| **Terminal Emulator for Android** | inside the above | Apache-2.0 — © 2005-2008 The Android Open Source Project, via [jackpal/Android-Terminal-Emulator](https://github.com/jackpal/Android-Terminal-Emulator) |
+| **model-viewer** (+ Three.js) | `app/src/main/assets/viewer/` | BSD-3-Clause and MIT — © Google LLC |
+| **opencode** | installed on-device at setup, not bundled | MIT — <https://github.com/sst/opencode> |
+| **proot-distro**, Debian, Termux packages | installed on-device at setup, not bundled | their own upstream licences |
+
+Two details worth stating plainly, because both are obligations rather than courtesies:
+
+- Termux's licence is GPLv3 **with an exception** — it bundles AOSP terminal code under Apache-2.0.
+  A description of the project as "GPLv3" alone is incomplete, so `NOTICE` reproduces the AOSP
+  copyright notice verbatim, per section 4(d) of the Apache License.
+- `model-viewer` is prebuilt rather than vendored, so it ships inside the APK. That is why the
+  3D preview works with no network at all.
+
+Cody is an independent client and is **not affiliated with or endorsed by** the opencode or Termux
+projects.
