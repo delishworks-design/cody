@@ -19,8 +19,10 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
-        with:
-          ndk-version: 27.2.12479018
+
+      - name: Install NDK
+        run: |
+          sdkmanager --install "ndk;27.2.12479018"
 
       - name: Fetch bootstraps
         run: |
