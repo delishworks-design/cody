@@ -708,7 +708,6 @@ private fun EditPromptDialog(
                     minLines = 3,
                     maxLines = 10,
                     textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp, lineHeight = 21.sp),
-                    cursorBrush = SolidColor(Accent),
                     colors = OutlinedTextFieldDefaults.colors(
                         focusedBorderColor = Accent,
                         unfocusedBorderColor = Border,
