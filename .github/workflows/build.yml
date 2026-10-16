@@ -68,18 +68,40 @@ jobs:
 
       # assembleRelease emits an unsigned APK. It is signed here rather than in build.gradle so no
       # keystore material and no signing config ever enter the repository.
+      #
+      # The signing key is a long-lived identity: Android refuses to install an update signed by a
+      # different key, so a throwaway key per run means every release forces a reinstall — and a
+      # reinstall throws away the provisioned Termux + Debian environment, so the user waits out
+      # setup again. The keystore therefore comes from a repository secret when one exists.
+      #
+      # Secrets: KEYSTORE_B64 (base64 of release.jks), KEYSTORE_PASS, KEY_ALIAS. Forks and anyone
+      # without them fall back to generating a throwaway key, which builds fine but is only good
+      # for that one artifact.
       - name: Sign the release APK
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         run: |
           set -euo pipefail
           BT="${ANDROID_HOME}/build-tools/35.0.0"
-          # At least 6 characters: keytool on JDK 17+ rejects anything shorter with
-          # "Key password must be at least 6 characters". This keystore is generated fresh every
-          # run and never leaves the runner, so the password is not a secret — it only has to
-          # satisfy the tool. See the note after the loop about what that means for upgrades.
-          KEYSTORE_PASS="cody-ci-temporary"
-          keytool -genkeypair -v -keystore release.jks -storepass "$KEYSTORE_PASS" -keypass "$KEYSTORE_PASS" \
-            -alias cody -keyalg RSA -keysize 4096 -validity 10000 \
-            -dname "CN=Cody, OU=Cody, O=delishworks-design, L=, S=, C=PH"
+
+          if [ -n "${KEYSTORE_B64:-}" ]; then
+            echo "Using the repository signing key from KEYSTORE_B64."
+            printf '%s' "$KEYSTORE_B64" | base64 -d > release.jks
+            ALIAS="${KEY_ALIAS:-cody}"
+            PASS="$KEYSTORE_PASS"
+          else
+            echo "::warning::No KEYSTORE_B64 secret set. Generating a throwaway signing key: this" \
+              "artifact cannot update an existing install, so it is only useful for testing."
+            # At least 6 characters: keytool on JDK 17+ rejects anything shorter with
+            # "Key password must be at least 6 characters".
+            PASS="cody-ci-temporary"
+            ALIAS="cody"
+            keytool -genkeypair -v -keystore release.jks -storepass "$PASS" -keypass "$PASS" \
+              -alias "$ALIAS" -keyalg RSA -keysize 4096 -validity 10000 \
+              -dname "CN=Cody, OU=Cody, O=delishworks-design, L=, S=, C=PH"
+          fi
 
           mkdir -p signed
           i=0
@@ -88,7 +110,7 @@ jobs:
             aligned="signed/aligned-${i}.apk"
             "${BT}/zipalign" -f -p 4 "$apk" "$aligned"
             "${BT}/apksigner" sign \
-              --ks release.jks --ks-pass "pass:$KEYSTORE_PASS" --key-pass "pass:$KEYSTORE_PASS" \
+              --ks release.jks --ks-pass "pass:$PASS" --key-pass "pass:$PASS" --ks-key-alias "$ALIAS" \
               --out "signed/cody-$(date -u +%Y%m%d)-${i}.apk" "$aligned"
             "${BT}/apksigner" verify --print-certs "signed/cody-$(date -u +%Y%m%d)-${i}.apk" | head -3
           done
