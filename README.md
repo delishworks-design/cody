@@ -86,12 +86,22 @@ ads.
 
 ## Preview
 
-| Chat | Drawer | Terminal |
-| --- | --- | --- |
-| ![The chat screen](docs/preview-chat.png) | ![The conversation drawer](docs/preview-drawer.png) | ![The terminal](docs/preview-terminal.png) |
+![The chat screen, with tool calls and reasoning](docs/preview-chat.png)
 
-Everything above runs on the phone alone — the streaming chat, the drawer and the terminal are all
-the real app, not a mock-up.
+A real screenshot, taken on the phone — nothing here is mocked up. It shows tool calls rendered as
+cards with their live status, reasoning collapsed behind *Thought for a moment*, the mode chip, and
+the composer.
+
+The app has a first-run state worth seeing too: a fresh install opens straight into the chat and
+provisions itself in the background, so there is no setup wizard to hunt for.
+
+![The first-run provisioning state](docs/preview-setup.png)
+
+![The empty state, ready to type](docs/preview-welcome.png)
+
+> The drawer and the agent's question prompt are deliberately absent here. Both render real
+> conversation titles and real repository names from the device verbatim, and publishing those was
+> not worth it for a README.
 
 ## Installation
 
