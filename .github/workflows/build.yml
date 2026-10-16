@@ -72,7 +72,12 @@ jobs:
         run: |
           set -euo pipefail
           BT="${ANDROID_HOME}/build-tools/35.0.0"
-          keytool -genkeypair -v -keystore release.jks -storepass cody -keypass cody \
+          # At least 6 characters: keytool on JDK 17+ rejects anything shorter with
+          # "Key password must be at least 6 characters". This keystore is generated fresh every
+          # run and never leaves the runner, so the password is not a secret — it only has to
+          # satisfy the tool. See the note after the loop about what that means for upgrades.
+          KEYSTORE_PASS="cody-ci-temporary"
+          keytool -genkeypair -v -keystore release.jks -storepass "$KEYSTORE_PASS" -keypass "$KEYSTORE_PASS" \
             -alias cody -keyalg RSA -keysize 4096 -validity 10000 \
             -dname "CN=Cody, OU=Cody, O=delishworks-design, L=, S=, C=PH"
 
@@ -83,7 +88,7 @@ jobs:
             aligned="signed/aligned-${i}.apk"
             "${BT}/zipalign" -f -p 4 "$apk" "$aligned"
             "${BT}/apksigner" sign \
-              --ks release.jks --ks-pass pass:cody --key-pass pass:cody \
+              --ks release.jks --ks-pass "pass:$KEYSTORE_PASS" --key-pass "pass:$KEYSTORE_PASS" \
               --out "signed/cody-$(date -u +%Y%m%d)-${i}.apk" "$aligned"
             "${BT}/apksigner" verify --print-certs "signed/cody-$(date -u +%Y%m%d)-${i}.apk" | head -3
           done
