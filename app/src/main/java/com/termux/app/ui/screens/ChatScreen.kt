@@ -414,8 +414,9 @@ fun ChatScreen(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(
-                            horizontal = 14.dp,
+                            start = 14.dp,
                             top = 14.dp,
+                            end = 14.dp,
                             bottom = 80.dp,
                         ),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
