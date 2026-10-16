@@ -16,8 +16,9 @@
 # container should not survive a run and contradict the version in the app.
 
 PREFIX="${PREFIX:-/data/data/com.termux/files/usr}"
+HOME="${HOME:-/data/data/com.termux/files/home}"
 # Unpacked from the APK by ProvisionAssets alongside the other scripts.
-ASSETS="$PREFIX/home/.opencode-provision/skills"
+ASSETS="$HOME/.opencode-provision/skills"
 TARGET_REL="root/.config/opencode/skills"
 
 if [ ! -d "$ASSETS" ]; then

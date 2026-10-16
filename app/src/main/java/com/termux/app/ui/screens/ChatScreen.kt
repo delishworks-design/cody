@@ -494,9 +494,13 @@ fun ChatScreen(
                     onPick = { skill ->
                         val prefix = "/${skill.name} "
                         val existing = state.input
-                        viewModel.onManualInputChange(
-                            if (existing.startsWith("/")) existing else prefix + existing
-                        )
+                        val newValue = if (existing.startsWith("/")) {
+                            val rest = existing.substringAfter(' ', "")
+                            if (rest.isEmpty()) prefix else prefix + rest
+                        } else {
+                            prefix + existing
+                        }
+                        viewModel.onManualInputChange(newValue)
                     },
                 )
             }
@@ -1886,20 +1890,14 @@ private fun ModeSwitch(
     }
     if (selected.isEmpty()) return
 
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 2.dp),
-    ) {
-        Box {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .clip(RoundedCornerShape(14.dp))
-                    .clickable { open = true }
-                    .padding(horizontal = 9.dp, vertical = 5.dp),
-            ) {
+    Box {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .clip(RoundedCornerShape(14.dp))
+                .clickable { open = true }
+                .padding(horizontal = 9.dp, vertical = 5.dp),
+        ) {
                 Icon(
                     Icons.Outlined.SmartToy,
                     contentDescription = null,
@@ -1962,7 +1960,6 @@ private fun ModeSwitch(
                 }
             }
         }
-    }
 }
 
 /** Shared left inset for the composer's text and its control row. One number, both children. */

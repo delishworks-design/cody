@@ -77,11 +77,18 @@ object ProvisionAssets {
             for (child in children) {
                 val childPath = "$assetPath/$child"
                 val target = File(destination, child)
-                // A directory entry lists as a file open attempt failing, so probe it first.
-                if (context.assets.list(childPath) != null) {
-                    copyTree(context, childPath, target)
-                } else {
+                // Distinguish a file from a directory by trying to open it: AssetManager.list
+                // returns an array for both (empty for a file), so a length check would misclassify.
+                val isFile = try {
+                    context.assets.open(childPath).close()
+                    true
+                } catch (t: Throwable) {
+                    false
+                }
+                if (isFile) {
                     copyFile(context, childPath, target, executable = false)
+                } else {
+                    copyTree(context, childPath, target)
                 }
             }
         } catch (t: Throwable) {
