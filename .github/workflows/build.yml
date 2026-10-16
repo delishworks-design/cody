@@ -24,7 +24,10 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
+      # v4, not v3: v3 ends by running `sdkmanager tools`, and Google has removed the obsolete
+      # "tools" package from the SDK repository. That makes the action exit 1 on
+      # "Failed to find package 'tools'" before the build ever starts. v4 dropped that install.
+      - uses: android-actions/setup-android@v4
 
       - name: Install SDK components
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "platform-tools"
