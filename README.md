@@ -41,6 +41,94 @@ Termux backend** as its workspace and runs **opencode inside a Debian container*
 Everything, including the AI provider traffic, happens on-device. The app ships no analytics and no
 ads.
 
+## How it works
+
+Four layers, each of which exists only because the one below it does.
+
+### Layer 1 — the build ships the operating system
+
+The Termux rootfs is not downloaded on first run; it is **compiled into the APK**.
+`scripts/fetch-bootstraps.ps1` fetches one bootstrap zip per ABI, and the Gradle
+`downloadBootstraps` → `buildBootstrapLibs` tasks cross-compile them with `ndk-build` into
+`libtermux-bootstrap.so`. At first launch `TermuxInstaller` extracts the correct archive into the
+app's data directory, giving a working `bash`, `apt` and `proot-distro` with zero user setup.
+
+Two build decisions exist purely to satisfy the embedded Termux, and both are explained in
+[Why is the applicationId `com.termux`?](#why-is-the-applicationid-comtermux): the package id must
+stay `com.termux`, and `targetSdk` must stay **28**, because from Android 10 an app may not `exec()`
+files out of its own writable data directory — which is exactly where the rootfs lives.
+
+### Layer 2 — provisioning is shell, not Kotlin
+
+`EnvironmentProvisioner` does not reimplement installation logic in Kotlin. It unpacks ordered
+scripts from `assets/provision/` and runs them, recording how far it got so an interrupted setup
+**resumes** rather than restarting. See [Environment provisioning](#environment-provisioning) for
+the script-by-script table and [Corporate networks](#corporate-networks--tls-inspection) for the
+TLS story.
+
+Two rules run through it. **Optional steps can fail without failing setup** — a blocked npm
+registry should not block an agent that already works. And **TLS is never silently disabled** —
+the scripts probe a real HTTPS request first, because leaving verification off would quietly weaken
+every later `apt-get` the agent runs.
+
+Three workarounds exist that only make sense given the stack: step `03` monkey-patches Python's
+`ssl._create_default_https_context` because proot fetches the rootfs with `urllib` and Python has no
+"skip verify" env var; step `06` installs the Vercel CLI with **bun, not npm**, because npm's
+`cacache` renames temp files into content-addressed paths and that `rename()` returns `ENOENT` under
+proot on every filesystem; step `07` installs `python3-numpy` because Blender's glTF exporter imports
+it unconditionally.
+
+### Layer 3 — the server, and why plain HTTP works
+
+`OpenCodeServer.ensureStarted()` runs one script:
+
+```sh
+exec proot-distro login debian --shared-tmp -- /bin/bash -lc \
+  "exec opencode serve --port 4096 --hostname 127.0.0.1"
+```
+
+The key fact is that **proot translates syscalls but does not create a network namespace.** A server
+bound to `127.0.0.1` inside the container is the *same* `127.0.0.1` the Android app sees. So there
+is no port forwarding, no bridge, no socket shim — `OpenCodeApi` is an `HttpURLConnection` against
+`http://127.0.0.1:4096`, plus one SSE subscription for streaming events.
+
+`ensureStarted()` is deliberately cheap and idempotent: it health-checks first and returns
+immediately when the server is already alive, behind a `starting` guard so two concurrent callers
+cannot spawn duplicates.
+
+Three more local servers reuse the same insight — that a loopback origin is what a browser treats as
+same-origin: `opencode web` on `:4173` (the dashboard, for [connecting a provider](#getting-pages-in)),
+`WebPreviewServer` (HTML the agent writes) and `ViewerServer` (a `.glb` plus its page from one
+`127.0.0.1:<port>`, so `<model-viewer>`'s fetch is same-origin and WebGL is not blocked).
+
+### Layer 4 — state outlives the screen
+
+`OpenCodeRuntime` is a Kotlin `object`, not a ViewModel, and its coroutine scope is tied to the
+**process**:
+
+```kotlin
+private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+```
+
+That is the entire reason a reply survives rotating the device, pressing home, or navigating away.
+`ChatScreen` only observes `state` and forwards intents; it never owns the work. Because the scope is
+main-dispatched, every mutation of `messages` and `_state` is main-thread confined and needs no
+locking, while blocking HTTP and the SSE reader are explicitly pushed to `Dispatchers.IO`.
+
+Streaming is one SSE stream feeding `handleEvent()`, which dispatches on event type:
+`message.updated` replaces a message wholesale, `part.updated` replaces one part, `part.delta`
+appends a fragment. Each mutation calls `publish()`, which emits an immutable snapshot through a
+`MutableStateFlow` that Compose collects. Orphans — deltas for a part that arrives before its parent
+— are buffered and returned once the parent shows up, so text never drops out of order on a slow
+connection. See [Chat interface](#chat-interface) for the API table.
+
+### The trade
+
+Every hard part here is a consequence of one decision: reuse an existing Linux userland instead of
+reimplementing it. The price is the vendored GPLv3 Termux codebase, the pinned `com.termux` package
+name, `targetSdk 28`, and a stack of proot-specific workarounds. The payoff is that the agent gets
+the entire Linux toolchain, on device, with no server and no account.
+
 ## Features
 
 - **Chat interface** (the default): a Claude Code-style conversation view with streaming replies,
