@@ -138,7 +138,16 @@ the entire Linux toolchain, on device, with no server and no account.
   is per session and restored when you reopen it.
 - **Drawer**: recent conversations with relative timestamps, swipe-to-delete, long-press rename
   (the rename is written through to both the local store and `PATCH /session/:id`, so it survives a
-  restart and shows on the server). Also holds Files, *Connect a provider* and Setup.
+  restart and shows on the server). Also holds Files, Terminal, *Settings* and Setup.
+- **Settings**: one place for credentials, split in two because neither half can do the other's job.
+  *AI providers* opens opencode's own dashboard for model keys; *Service keys* is for the accounts
+  the **agent** uses while working — GitHub, Vercel, Supabase, Anthropic, OpenAI, Google AI Studio,
+  OpenRouter, Cloudflare, Figma, Stripe, Sentry, Resend, plus anything you add yourself.
+- **Service keys actually reach the agent**: each one is written to `/root/.cody-credentials.env`
+  (mode 600) under the environment variable its own CLI already reads — `GH_TOKEN`,
+  `VERCEL_TOKEN`, `SUPABASE_ACCESS_TOKEN` — so `gh`, `vercel` and `supabase` work on being sourced,
+  with no wrapper and no per-tool configuration. Cody itself is only told which keys exist and
+  where the file is, never their values.
 - **Dictation**: on-device Whisper, installed by an optional provisioning step. Tap the mic to start,
   tap again to stop — the transcript lands in the composer with no intermediate "transcribing" state.
 - **Stays awake while you use it**: `FLAG_KEEP_SCREEN_ON` rather than a `WakeLock`, so there is no
@@ -218,7 +227,7 @@ That is the whole flow. There is no server to start, no key to paste, and nothin
   roughly 1100 free models. The picker lists **free models only**, and the default selection is
   **Auto · free**, which picks the strongest available free model and rotates to the next one when
   the current one is rate-limited. Bring a provider key later if you want paid models; that is
-  configured inside opencode, on device, under *Connect a provider* in the drawer.
+  configured inside opencode, on device, under *Settings → AI providers* in the drawer.
 
 ## Building
 
@@ -290,7 +299,7 @@ provisions itself in the background:
    a few minutes, and a silent wait reads as a hang.
 3. The screen hands over to the chat as soon as the server answers. Type and send.
 4. Nothing to configure for a first reply — free models are already connected. To add a paid
-   provider, open the drawer and use *Connect a provider*.
+   provider, open the drawer and use *Settings*.
 
 If provisioning is interrupted, it resumes rather than restarting: the provisioner records how far it
 got and skips completed steps on the next launch. *Setup* in the drawer re-runs it on demand, and the
