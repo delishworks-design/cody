@@ -76,6 +76,9 @@ ads.
 - Works behind corporate TLS inspection: setup mirrors the device trust store (system **and** user
   CAs) into the Termux and Debian CA bundles before anything downloads, and can accept a root CA
   that only exists on your machine — see [Corporate networks](#corporate-networks--tls-inspection).
+- **Terminal**: *Drawer → Terminal* opens a real terminal on the same proot session the chat runs on,
+  with an extra-keys bar (Ctrl, Alt, Shift, Esc, Tab, arrows, Home/End, Ctrl+C/D/Z), font sizing and
+  a Ctrl-C shortcut. It starts the **opencode TUI**, so it is the same agent in a raw interface.
 - Foreground service keeps your sessions alive in the background.
 - Dark UI built around the Cody mark — a rounded square with two eyes and a smile, drawn once and
   reused by the drawer, the initialising screen and the launcher icon.
@@ -205,12 +208,10 @@ If provisioning is interrupted, it resumes rather than restarting: the provision
 got and skips completed steps on the next launch. *Setup* in the drawer re-runs it on demand, and the
 **Run setup again** button on the ready panel forces a fresh pass.
 
-> **The terminal is not reachable from the UI yet.** A full terminal screen ships in the build —
-> extra-keys bar, font sizing, Ctrl-C — and the service it would attach to is already running, but
-> nothing in the app launches it: `TerminalActivity` is imported in `MainActivity` and never started,
-> and the drawer offers only *Files*, *Connect a provider* and *Setup*. It is listed here as a known
-> gap rather than a feature, because a reader who cannot find it should be told why. Wiring it up is
-> a drawer row and a `startActivity` call.
+> **The terminal is in the drawer, on the opencode TUI.** *Drawer → Terminal* opens a real
+> terminal on the same proot session the chat runs on — extra-keys bar, font sizing, Ctrl-C. The
+> bare **Termux** and **Debian** shells are not wired to the drawer; `TerminalActivity` supports
+> both via `EXTRA_SESSION_TYPE` (`SESSION_SHELL` / `SESSION_DEBIAN`), but only the TUI has a button.
 
 ## Environment provisioning
 

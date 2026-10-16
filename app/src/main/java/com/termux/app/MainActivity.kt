@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
                         ChatScreen(
                             onOpenSetup = { navController.navigate("setup") },
                             onOpenProviderSetup = { openProviderSetup() },
+                            onOpenTerminal = { openTerminal() },
                         )
                     }
                     composable("setup") {
@@ -109,6 +110,24 @@ class MainActivity : ComponentActivity() {
             OpenCodeWeb.awaitReady(applicationContext, attempts = 8)
             WebViewActivity.start(this@MainActivity, OpenCodeWeb.URL, "Connect a provider")
         }
+    }
+
+    /**
+     * Opens the raw terminal on the opencode TUI.
+     *
+     * This is the shell the chat itself is built on — the same proot session, entered the same way
+     * — so it is the right one to offer first. `TerminalActivity` can also be pointed at the bare
+     * Termux or Debian shells via [TerminalActivity.EXTRA_SESSION_TYPE]; only the TUI is wired to
+     * the drawer for now, because a drawer carrying three near-identical shell entries is worse
+     * than one that starts where you meant to be.
+     */
+    private fun openTerminal() {
+        startActivity(
+            Intent(this, TerminalActivity::class.java).apply {
+                putExtra(TerminalActivity.EXTRA_SESSION_TYPE, TerminalActivity.SESSION_OPENCODE)
+                putExtra(TerminalActivity.EXTRA_TITLE, "opencode")
+            },
+        )
     }
 
     private fun requestNotificationPermissionIfNeeded() {

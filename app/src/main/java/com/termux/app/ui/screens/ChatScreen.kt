@@ -196,6 +196,7 @@ import java.util.Locale
 fun ChatScreen(
     onOpenSetup: () -> Unit,
     onOpenProviderSetup: () -> Unit,
+    onOpenTerminal: () -> Unit,
     viewModel: ChatViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -344,6 +345,12 @@ fun ChatScreen(
         onOpenFiles = { showFiles = true },
         onOpenProvider = onOpenProviderSetup,
         onOpenSetup = onOpenSetup,
+        onOpenTerminal = {
+            // Close the drawer first. The terminal is a separate activity, so on return the user
+            // would otherwise land on a still-open drawer covering the transcript.
+            scope.launch { drawerState.close() }
+            onOpenTerminal()
+        },
         drawerState = drawerState,
     ) {
         // Indented one level further than the drawer call that follows it: this Column is the

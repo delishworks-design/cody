@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.Icon
@@ -85,6 +86,7 @@ fun ChatDrawer(
     onOpenFiles: () -> Unit,
     onOpenProvider: () -> Unit,
     onOpenSetup: () -> Unit,
+    onOpenTerminal: () -> Unit,
     drawerState: androidx.compose.material3.DrawerState,
     content: @Composable () -> Unit,
 ) {
@@ -231,6 +233,7 @@ fun ChatDrawer(
                     Spacer(modifier = Modifier.height(14.dp))
                     DrawerDivider()
                     DrawerRow(Icons.Filled.Folder, "Files", onOpenFiles)
+                    DrawerRow(Icons.Outlined.Terminal, "Terminal", onOpenTerminal)
                     DrawerRow(Icons.Filled.Bolt, "Connect a provider", onOpenProvider)
                     DrawerRow(Icons.Filled.Settings, "Setup", onOpenSetup)
                     Spacer(modifier = Modifier.height(24.dp))
