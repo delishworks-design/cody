@@ -291,6 +291,14 @@ object OpenCodeRuntime {
             type == "message.part.updated" -> onPartUpdated(props)
             type == "message.part.delta" -> onPartDelta(props)
 
+            // The server drops a message when it is deleted, which is what regenerate and
+            // edit-prompt do. Without this the row would sit on screen until the next full history
+            // reload, so a delete would look like it had not worked.
+            type == "message.removed" || type == "message.part.removed" -> {
+                val id = props.optString("messageID").ifEmpty { props.optString("id") }
+                if (id.isNotEmpty() && messages.remove(id) != null) publish()
+            }
+
             type == "session.status" -> {
                 val status = props.optJSONObject("status")?.optString("type").orEmpty()
                 setBusy(status == "busy")
@@ -428,6 +436,74 @@ object OpenCodeRuntime {
                 statusLine = status,
                 modelLabel = lastModel ?: it.modelLabel,
             )
+        }
+    }
+
+    // -------------------------------------------------------------------------------------------
+    // Regenerate and edit
+    // -------------------------------------------------------------------------------------------
+
+    /**
+     * Answers the same question again, from a different run of the model.
+     *
+     * Deletes the whole turn — the user's message and everything the agent produced from it — and
+     * re-sends the text. Deleting the user's message too is deliberate: the alternative is deleting
+     * only the reply and posting a fresh prompt, which leaves two copies of the same question in the
+     * transcript. One turn in, one turn out.
+     *
+     * Files the agent wrote are left alone. This is a chat-level operation, not a rollback: asking
+     * for a different answer is not asking to lose the work.
+     */
+    fun regenerate(userMessageId: String) {
+        val text = messages[userMessageId]?.text?.takeIf { it.isNotBlank() } ?: return
+        replaceTurn(userMessageId, text)
+    }
+
+    /** Replaces a prompt and re-asks it. Everything after that message goes with it. */
+    fun editAndResend(userMessageId: String, newText: String) {
+        val cleaned = newText.trim()
+        if (cleaned.isEmpty()) return
+        replaceTurn(userMessageId, cleaned)
+    }
+
+    /**
+     * Drops [userMessageId] and every message after it, then sends [text] as a new turn.
+     *
+     * Both features are this. Doing it as delete-then-send rather than as an edit is what the server
+     * allows: `PATCH` only reaches a *part*'s metadata, not the text of a message, and `revert`
+     * would drag the working tree back with it.
+     */
+    private fun replaceTurn(userMessageId: String, text: String) {
+        val sessionId = _state.value.sessionId ?: return
+        if (_state.value.busy) return
+
+        // Deleting from the *user* message backwards would be wrong: the messages after it are the
+        // ones the new turn has to replace.
+        val doomed = messages.values
+            .filter { it.id != LOCAL_PREFIX && !it.id.startsWith(LOCAL_PREFIX) }
+            .dropWhile { it.id != userMessageId }
+
+        if (doomed.isEmpty()) return
+
+        scope.launch {
+            _state.update { it.copy(busy = true, error = null) }
+            publish()
+
+            withContext(Dispatchers.IO) {
+                for (message in doomed) {
+                    OpenCodeApi.deleteMessage(sessionId, message.id)
+                }
+            }
+
+            // Drop them locally first, so the transcript updates immediately rather than waiting on
+            // a history reload. The server also pushes message.removed, which is idempotent here.
+            doomed.forEach { messages.remove(it.id) }
+            publish()
+
+            // Cleared in one update: send() refuses to start while busy is set, and a second
+            // update here would leave a gap where the turn looks idle but has not been re-sent.
+            _state.update { it.copy(input = text, attachments = emptyList(), busy = false) }
+            send()
         }
     }
 

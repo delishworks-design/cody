@@ -1,5 +1,6 @@
 package com.termux.app.chat
 
+import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import org.json.JSONArray
@@ -20,6 +21,8 @@ import java.net.URL
  * All methods here block; call them from [Dispatchers.IO].
  */
 object OpenCodeApi {
+    private const val TAG = "OpenCodeApi"
+
     const val PORT = 4096
     const val BASE = "http://127.0.0.1:$PORT"
 
@@ -181,6 +184,22 @@ object OpenCodeApi {
             )
         }
         return out
+    }
+
+    /**
+     * Hard-deletes one message.
+     *
+     * This is what backs regenerate and edit-prompt. It is a deletion rather than a revert on
+     * purpose: `POST /session/:id/revert` would also roll the working tree back to its snapshot, and
+     * someone asking for a different answer does not want the files the agent already wrote to
+     * disappear. Returns false rather than throwing, so a batch delete can carry on.
+     */
+    fun deleteMessage(sessionId: String, messageId: String, timeoutMs: Int = 15_000): Boolean = try {
+        request("DELETE", "/session/$sessionId/message/$messageId", null, timeoutMs)
+        true
+    } catch (t: Throwable) {
+        Log.w(TAG, "Could not delete $messageId: ${t.message?.take(120)}")
+        false
     }
 
     /**

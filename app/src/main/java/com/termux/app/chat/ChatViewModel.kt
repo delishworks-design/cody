@@ -109,6 +109,12 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun rejectQuestion() = OpenCodeRuntime.rejectQuestion()
     fun refreshPending() = OpenCodeRuntime.refreshPending()
 
+    /** Answers the turn that starts at [userMessageId] again, from a fresh run of the model. */
+    fun regenerate(userMessageId: String) = OpenCodeRuntime.regenerate(userMessageId)
+
+    /** Replaces the prompt at [userMessageId] and re-asks it, dropping everything after it. */
+    fun editAndResend(userMessageId: String, text: String) = OpenCodeRuntime.editAndResend(userMessageId, text)
+
     /** Re-reads models/agents/providers, so a provider connected in the terminal shows up on return. */
     fun refreshCatalogue() = OpenCodeRuntime.refreshCatalogue()
 

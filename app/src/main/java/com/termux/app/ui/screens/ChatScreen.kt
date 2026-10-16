@@ -420,6 +420,9 @@ fun ChatScreen(
                                     modelLabel = state.modelLabel,
                                     status = if (isNewest) state.statusLine else "",
                                     busy = state.busy,
+                                    canRegenerate = !state.busy,
+                                    onRegenerate = { viewModel.regenerate(message.id) },
+                                    onEdit = { text -> viewModel.editAndResend(message.id, text) },
                                 )
                             }
                         }
@@ -578,7 +581,12 @@ private fun MessageRow(
     modelLabel: String,
     status: String,
     busy: Boolean,
+    canRegenerate: Boolean,
+    onRegenerate: () -> Unit,
+    onEdit: (String) -> Unit,
 ) {
+    var editing by remember(message.id) { mutableStateOf(false) }
+
     Column(modifier = Modifier.fillMaxWidth()) {
         if (message.isUser) {
             UserMessage(message = message)
@@ -590,23 +598,49 @@ private fun MessageRow(
                 busy = busy,
             )
         }
-        // Copy the whole turn. Hidden until the message is tapped so the transcript stays quiet.
-        var showCopy by remember(message.id) { mutableStateOf(false) }
-        if (showCopy) {
-            CopyChip(text = message.text) { showCopy = false }
+        // Copy the whole turn, plus regenerate/edit once the turn can actually be re-run. Hidden
+        // until the message is tapped so the transcript stays quiet.
+        var showActions by remember(message.id) { mutableStateOf(false) }
+        if (showActions) {
+            CopyChip(
+                text = message.text,
+                canRegenerate = canRegenerate && message.isUser,
+                onRegenerate = {
+                    showActions = false
+                    onRegenerate()
+                },
+                onEdit = {
+                    showActions = false
+                    editing = true
+                },
+                onDone = { showActions = false },
+            )
         }
         Spacer(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(16.dp)
-                .clickable { showCopy = !showCopy },
+                .clickable { showActions = !showActions },
         )
     }
 }
 
-/** A small confirm-and-dismiss chip carrying one button. */
+/**
+ * The row of actions under a tapped message.
+ *
+ * Regenerate and Edit only appear on a user turn, and only when the turn can actually be re-run: the
+ * server replaces the question and everything after it, so offering it on an assistant reply would
+ * mean guessing which question it belongs to. It is also hidden while a reply is streaming, since
+ * deleting the turn underneath a live reply would race it.
+ */
 @Composable
-private fun CopyChip(text: String, onDone: () -> Unit) {
+private fun CopyChip(
+    text: String,
+    canRegenerate: Boolean,
+    onRegenerate: () -> Unit,
+    onEdit: () -> Unit,
+    onDone: () -> Unit,
+) {
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
     var copied by remember(text) { mutableStateOf(false) }
@@ -615,7 +649,7 @@ private fun CopyChip(text: String, onDone: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.padding(top = 4.dp, start = 4.dp),
     ) {
-        TextButton(onClick = { onDone() }) {
+        TextButton(onClick = onDone) {
             Text("Close", color = TextMuted, fontSize = 12.sp)
         }
         TextButton(
@@ -630,7 +664,79 @@ private fun CopyChip(text: String, onDone: () -> Unit) {
         ) {
             Text(if (copied) "Copied" else "Copy message", color = if (copied) Success else AccentSoft, fontSize = 12.sp)
         }
+        if (canRegenerate) {
+            TextButton(onClick = onEdit) {
+                Text("Edit", color = AccentSoft, fontSize = 12.sp)
+            }
+            TextButton(onClick = onRegenerate) {
+                Text("Regenerate", color = AccentSoft, fontSize = 12.sp)
+            }
+        }
     }
+}
+
+/**
+ * Rewrites a prompt and re-asks it.
+ *
+ * Says plainly what is about to be discarded: editing a question from the middle of a conversation
+ * deletes that question and everything the agent said after it. Files already written stay on disk —
+ * this is not a rollback — and saying so is the difference between a user who meant it and a user
+ * who just lost work.
+ */
+@Composable
+private fun EditPromptDialog(
+    initial: String,
+    onConfirm: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by remember { mutableStateOf(initial) }
+    val changed = text.trim().isNotEmpty() && text.trim() != initial.trim()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = BgElevated,
+        properties = androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.padding(horizontal = 22.dp),
+        title = {
+            Text("Edit prompt", color = TextPrimary, style = MaterialTheme.typography.titleMedium)
+        },
+        text = {
+            Column {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    minLines = 3,
+                    maxLines = 10,
+                    textStyle = TextStyle(color = TextPrimary, fontSize = 15.sp, lineHeight = 21.sp),
+                    cursorBrush = SolidColor(Accent),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = Accent,
+                        unfocusedBorderColor = Border,
+                        focusedTextColor = TextPrimary,
+                        unfocusedTextColor = TextPrimary,
+                        cursorColor = AccentSoft,
+                    ),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    "This deletes this question and every reply after it, then asks again. Files the " +
+                        "agent already wrote stay on disk.",
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = TextMuted,
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(enabled = changed, onClick = { onConfirm(text) }) {
+                Text("Send", color = if (changed) AccentSoft else TextMuted)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel", color = TextMuted) }
+        },
+    )
 }
 
 /**
