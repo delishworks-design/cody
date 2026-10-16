@@ -195,7 +195,7 @@ import java.util.Locale
 @Composable
 fun ChatScreen(
     onOpenSetup: () -> Unit,
-    onOpenProviderSetup: () -> Unit,
+    onOpenSettings: () -> Unit,
     onOpenTerminal: () -> Unit,
     viewModel: ChatViewModel = viewModel(),
 ) {
@@ -343,7 +343,7 @@ fun ChatScreen(
         onDelete = viewModel::deleteSession,
         onRename = viewModel::renameSession,
         onOpenFiles = { showFiles = true },
-        onOpenProvider = onOpenProviderSetup,
+        onOpenSettings = onOpenSettings,
         onOpenSetup = onOpenSetup,
         onOpenTerminal = {
             // Close the drawer first. The terminal is a separate activity, so on return the user
@@ -486,11 +486,12 @@ fun ChatScreen(
                 onRemoveAttachment = viewModel::removeAttachment,
                 onPickPhoto = { photoLauncher.launch("image/*") },
                 onPickFile = { fileLauncher.launch(arrayOf("*/*")) },
-                // Provider auth is driven through opencode's own dashboard rather than a shell, so
-                // the user never has to leave the app or learn a command.
+                // Provider auth lives in Settings, next to the service keys. The catalogue is
+                // refreshed on the way there so a provider connected on that screen shows up in the
+                // picker as soon as the user comes back.
                 onConfigureProvider = {
                     viewModel.refreshCatalogue()
-                    onOpenProviderSetup()
+                    onOpenSettings()
                 },
             )
         }
@@ -2294,13 +2295,13 @@ private fun PlusMenu(
                 text = {
                     Column {
                         Text(
-                            text = "Connect a provider",
+                            text = "Settings",
                             style = MaterialTheme.typography.bodyMedium,
                             color = TextPrimary,
                         )
                         Text(
                             text = providers.takeIf { it.isNotEmpty() }?.joinToString(", ")
-                                ?: "Anthropic, OpenAI, Gemini, Ollama or your own endpoint",
+                                ?: "AI providers and your own service keys",
                             fontSize = 10.sp,
                             color = TextMuted,
                             maxLines = 2,

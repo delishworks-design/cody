@@ -6,6 +6,7 @@ import android.os.Build
 import android.util.Log
 import com.termux.app.shell.OpenCodeService
 import com.termux.app.shell.AgentNotifications
+import com.termux.app.settings.CredentialStore
 import com.termux.app.shell.PendingJobStore
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
@@ -523,6 +524,9 @@ object OpenCodeRuntime {
 
         val attachments = current.attachments
         val selected = current.selectedModel
+        // Captured here, not at the point of use: the note describes what was on disk when the
+        // user pressed send, which is the only moment it can be honestly described.
+        val credentialNote = appContext?.let { CredentialStore.agentNote(it) }
         if (attachments.any { it.isImage } && selected?.attachment == false) {
             _state.update {
                 it.copy(notice = "${selected.modelName} is text-only — the picture may be ignored or rejected.")
@@ -602,6 +606,7 @@ object OpenCodeRuntime {
                                 fileRefs = fileRefs,
                                 model = attempt,
                                 agent = _state.value.selectedAgent.takeIf { it.isNotEmpty() },
+                                credentialNote = credentialNote,
                             )
                             break
                         } catch (failure: Throwable) {

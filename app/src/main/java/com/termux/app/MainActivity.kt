@@ -27,6 +27,7 @@ import com.termux.app.install.TermuxPaths
 import com.termux.app.terminal.TerminalActivity
 import com.termux.app.ui.AppViewModel
 import com.termux.app.ui.screens.ChatScreen
+import com.termux.app.ui.screens.SettingsScreen
 import com.termux.app.ui.screens.SetupScreen
 import com.termux.app.ui.theme.CodyTheme
 import com.termux.app.web.WebViewActivity
@@ -83,12 +84,18 @@ class MainActivity : ComponentActivity() {
                     composable("chat") {
                         ChatScreen(
                             onOpenSetup = { navController.navigate("setup") },
-                            onOpenProviderSetup = { openProviderSetup() },
+                            onOpenSettings = { navController.navigate("settings") },
                             onOpenTerminal = { openTerminal() },
                         )
                     }
                     composable("setup") {
                         SetupScreen(viewModel = viewModel, onBack = { navController.popBackStack() })
+                    }
+                    composable("settings") {
+                        SettingsScreen(
+                            onBack = { navController.popBackStack() },
+                            onOpenProviderDashboard = { openProviderSetup() },
+                        )
                     }
                 }
             }

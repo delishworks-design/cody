@@ -220,6 +220,7 @@ object OpenCodeApi {
         fileRefs: List<String> = emptyList(),
         model: ModelInfo? = null,
         agent: String? = null,
+        credentialNote: String? = null,
         timeoutMs: Int = 300_000,
     ): String {
         val parts = JSONArray()
@@ -262,6 +263,13 @@ object OpenCodeApi {
                 append("Read or unpack ")
                 append(if (otherPaths.size == 1) "it" else "them")
                 append(" with your tools before answering.")
+            }
+
+            // Same idea as the attachments above: tell the agent what is available and where, not
+            // what it contains. The note names the variables and the path; the values stay on disk.
+            if (!credentialNote.isNullOrBlank()) {
+                if (isNotEmpty()) append("\n\n")
+                append(credentialNote)
             }
         }
         parts.put(JSONObject().put("type", "text").put("text", body))
