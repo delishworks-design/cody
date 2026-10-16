@@ -367,8 +367,7 @@ fun ChatScreen(
             // `enableEdgeToEdge()` lets the window paint under the system bars, so the screens have
             // to inset themselves. Without this the top bar sits under the clock.
             .statusBarsPadding()
-            .navigationBarsPadding()
-            .imePadding(),
+            .navigationBarsPadding(),
     ) {
         ChatTopBar(
             title = state.sessions.firstOrNull { it.id == state.sessionId }?.title
@@ -414,7 +413,11 @@ fun ChatScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 14.dp),
+                        contentPadding = PaddingValues(
+                            horizontal = 14.dp,
+                            top = 14.dp,
+                            bottom = 80.dp,
+                        ),
                         verticalArrangement = Arrangement.spacedBy(16.dp),
                     ) {
                         items(state.messages, key = { it.id }) { message ->
@@ -470,6 +473,7 @@ fun ChatScreen(
             state.notice?.let { notice ->
                 NoticeBar(message = notice, onDismiss = viewModel::dismissNotice)
             }
+            Column(modifier = Modifier.imePadding()) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -524,6 +528,7 @@ fun ChatScreen(
                     onOpenSettings()
                 },
             )
+            }
         }
     }
 
