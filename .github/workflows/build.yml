@@ -1,134 +1,44 @@
-name: Build release APK
+name: Build Debug APK
 
 on:
-  workflow_dispatch:
   push:
     branches: [main]
-
-permissions:
-  contents: read
+  workflow_dispatch:
 
 jobs:
   build:
-    # The project's own toolchain (aapt2, ndk-build, the bundled make) ships as x86_64 binaries,
-    # so the build only runs natively on an x86_64 runner. An arm64 host needs binfmt_misc + qemu,
-    # which is not something a build should depend on.
     runs-on: ubuntu-latest
-    timeout-minutes: 90
-
     steps:
       - uses: actions/checkout@v4
 
-      - uses: actions/setup-java@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
-      # v4, not v3: v3 ends by running `sdkmanager tools`, and Google has removed the obsolete
-      # "tools" package from the SDK repository. That makes the action exit 1 on
-      # "Failed to find package 'tools'" before the build ever starts. v4 dropped that install.
-      - uses: android-actions/setup-android@v4
-
-      - name: Install SDK components
-        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "ndk;27.2.12479018" "platform-tools"
-
-      # The repo has no gradlew checked in (only gradle-wrapper.properties), so Gradle is
-      # installed at the version the wrapper pins.
-      - name: Install Gradle 8.10.2
-        run: |
-          curl -fsSL -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
-          unzip -q -o /tmp/gradle.zip -d /opt
-          echo "/opt/gradle-8.10.2/bin" >> "$GITHUB_PATH"
-
-      - name: Cache Gradle and NDK downloads
-        uses: actions/cache@v4
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
         with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', 'gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-${{ runner.os }}-
+          ndk-version: 27.2.12479018
 
-      # The Termux rootfs archives are embedded into the APK as libtermux-bootstrap.so and are
-      # git-ignored, so a fresh checkout cannot build without them. Pinned to the same release the
-      # PowerShell helper uses.
-      - name: Fetch Termux bootstrap archives
+      - name: Fetch bootstraps
         run: |
           mkdir -p .cache/bootstraps
-          RELEASE=bootstrap-2026.10.04-r1+apt.android-7
-          for arch in aarch64 x86_64; do
-            curl -fsSL --retry 3 -H "User-Agent: opencode-android-build" \
-              -o ".cache/bootstraps/bootstrap-${arch}.zip" \
-              "https://github.com/termux/termux-packages/releases/download/${RELEASE}/bootstrap-${arch}.zip"
-            ls -la ".cache/bootstraps/bootstrap-${arch}.zip"
-          done
+          curl -L -o .cache/bootstraps/bootstrap-aarch64.zip https://github.com/termux/termux-packages/releases/download/bootstrap-2024.06.07-r1/bootstrap-aarch64.zip
+          curl -L -o .cache/bootstraps/bootstrap-x86_64.zip https://github.com/termux/termux-packages/releases/download/bootstrap-2024.06.07-r1/bootstrap-x86_64.zip
 
-      - name: Assemble release APK
-        run: gradle assembleRelease --no-daemon --stacktrace
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
 
-      # assembleRelease emits an unsigned APK. It is signed here rather than in build.gradle so no
-      # keystore material and no signing config ever enter the repository.
-      #
-      # The signing key is a long-lived identity: Android refuses to install an update signed by a
-      # different key, so a throwaway key per run means every release forces a reinstall — and a
-      # reinstall throws away the provisioned Termux + Debian environment, so the user waits out
-      # setup again. The keystore therefore comes from a repository secret when one exists.
-      #
-      # Secrets: KEYSTORE_B64 (base64 of release.jks), KEYSTORE_PASS, KEY_ALIAS. Forks and anyone
-      # without them fall back to generating a throwaway key, which builds fine but is only good
-      # for that one artifact.
-      - name: Sign the release APK
-        env:
-          KEYSTORE_B64: ${{ secrets.KEYSTORE_B64 }}
-          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASS }}
-          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+      - name: Build debug APK
         run: |
-          set -euo pipefail
-          BT="${ANDROID_HOME}/build-tools/35.0.0"
+          curl -L -o gradle-8.10.2-bin.zip https://services.gradle.org/distributions/gradle-8.10.2-bin.zip
+          unzip -q gradle-8.10.2-bin.zip
+          ./gradle-8.10.2/bin/gradle :app:assembleDebug --no-daemon
 
-          if [ -n "${KEYSTORE_B64:-}" ]; then
-            echo "Using the repository signing key from KEYSTORE_B64."
-            printf '%s' "$KEYSTORE_B64" | base64 -d > release.jks
-            ALIAS="${KEY_ALIAS:-cody}"
-            PASS="$KEYSTORE_PASS"
-          else
-            echo "::warning::No KEYSTORE_B64 secret set. Generating a throwaway signing key: this" \
-              "artifact cannot update an existing install, so it is only useful for testing."
-            # At least 6 characters: keytool on JDK 17+ rejects anything shorter with
-            # "Key password must be at least 6 characters".
-            PASS="cody-ci-temporary"
-            ALIAS="cody"
-            keytool -genkeypair -v -keystore release.jks -storepass "$PASS" -keypass "$PASS" \
-              -alias "$ALIAS" -keyalg RSA -keysize 4096 -validity 10000 \
-              -dname "CN=Cody, OU=Cody, O=delishworks-design, L=, S=, C=PH"
-          fi
-
-          mkdir -p signed
-          i=0
-          for apk in app/build/outputs/apk/release/*.apk; do
-            i=$((i+1))
-            aligned="signed/aligned-${i}.apk"
-            "${BT}/zipalign" -f -p 4 "$apk" "$aligned"
-            "${BT}/apksigner" sign \
-              --ks release.jks --ks-pass "pass:$PASS" --key-pass "pass:$PASS" --ks-key-alias "$ALIAS" \
-              --out "signed/cody-$(date -u +%Y%m%d)-${i}.apk" "$aligned"
-            "${BT}/apksigner" verify --print-certs "signed/cody-$(date -u +%Y%m%d)-${i}.apk" | head -3
-          done
-          ls -la signed/
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: cody-release-apk
-          path: signed/*.apk
-          if-no-files-found: error
-          retention-days: 30
-
-      - name: Summary
-        if: always()
-        run: |
-          {
-            echo "### Build"
-            echo ""
-            echo "commit \`${GITHUB_SHA:0:8}\` — ${GITHUB_REF_NAME}"
-          } >> "$GITHUB_STEP_SUMMARY"
-          ls -la signed/ 2>/dev/null >> "$GITHUB_STEP_SUMMARY" || echo "no signed APK" >> "$GITHUB_STEP_SUMMARY"
+          name: cody-debug
+          path: app/build/outputs/apk/debug/*.apk
