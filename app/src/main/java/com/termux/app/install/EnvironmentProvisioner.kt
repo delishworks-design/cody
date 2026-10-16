@@ -59,6 +59,7 @@ class EnvironmentProvisioner(private val context: Context) {
             "08-fix-tls.sh" to "Re-enabling TLS verification",
             "09-workspace-agents-md.sh" to "Teaching the agent about previews",
             "10-install-whisper.sh" to "Installing Whisper for dictation",
+            "11-install-skills.sh" to "Installing agent skills",
         )
 
         /** Script used to decide whether opencode is reachable inside the Debian container. */

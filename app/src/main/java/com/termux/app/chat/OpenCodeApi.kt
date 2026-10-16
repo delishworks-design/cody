@@ -150,6 +150,7 @@ object OpenCodeApi {
                 id = id,
                 title = obj.optString("title").ifEmpty { "Untitled" },
                 updated = obj.optJSONObject("time")?.optLong("updated") ?: 0L,
+                pinned = obj.optJSONObject("metadata")?.optBoolean("cody_pinned") == true,
             )
         }
         return out.sortedByDescending { it.updated }
@@ -199,6 +200,82 @@ object OpenCodeApi {
         true
     } catch (t: Throwable) {
         Log.w(TAG, "Could not delete $messageId: ${t.message?.take(120)}")
+        false
+    }
+
+    /**
+     * The skills opencode has installed, from `GET /skill`.
+     *
+     * Read live rather than bundled with the app: skills come from the global and project skill
+     * directories and from HTTP catalogs, all of which can change without the app changing.
+     */
+    fun skills(timeoutMs: Int = 15_000): List<SkillInfo> = try {
+        val array = JSONArray(get("/skill", timeoutMs))
+        val out = ArrayList<SkillInfo>(array.length())
+        for (i in 0 until array.length()) {
+            val obj = array.optJSONObject(i) ?: continue
+            val name = obj.optString("name")
+            if (name.isEmpty()) continue
+            out += SkillInfo(
+                name = name,
+                description = obj.optString("description"),
+                location = obj.optString("location"),
+            )
+        }
+        out.sortedBy { it.name }
+    } catch (t: Throwable) {
+        Log.w(TAG, "Could not read skills: ${t.message?.take(120)}")
+        emptyList()
+    }
+
+    /**
+     * Files the agent has changed in the working project, from `GET /file/status`.
+     *
+     * This is what the change panel renders: a path, whether it was added, modified or deleted, and
+     * the line counts. `GET /session/:id/diff` also exists but is scoped to one session, and a
+     * header panel should show the working tree rather than the last conversation.
+     */
+    fun fileStatus(directory: String? = null, timeoutMs: Int = 15_000): List<FileStatus> = try {
+        val query = directory?.let { "?directory=" + java.net.URLEncoder.encode(it, "UTF-8") }.orEmpty()
+        val array = JSONArray(get("/file/status$query", timeoutMs))
+        val out = ArrayList<FileStatus>(array.length())
+        for (i in 0 until array.length()) {
+            val obj = array.optJSONObject(i) ?: continue
+            val path = obj.optString("path")
+            if (path.isEmpty()) continue
+            out += FileStatus(
+                path = path,
+                status = obj.optString("status").ifEmpty { "modified" },
+                added = obj.optInt("added"),
+                removed = obj.optInt("removed"),
+            )
+        }
+        out.sortedBy { it.path }
+    } catch (t: Throwable) {
+        Log.w(TAG, "Could not read file status: ${t.message?.take(120)}")
+        emptyList()
+    }
+
+    /**
+     * Pins or unpins a conversation.
+     *
+     * There is no `pinned` field on a session, so it goes in `metadata`. That is deliberate: a
+     * metadata pin is stored by the server and comes back on every device and after a reinstall,
+     * which an app-local preference would not be.
+     *
+     * The existing metadata is replaced wholesale, so the value is read first and merged rather
+     * than guessed at — otherwise writing a pin would silently clear anything else in there.
+     */
+    fun setPinned(sessionId: String, pinned: Boolean, timeoutMs: Int = 15_000): Boolean = try {
+        val existing = JSONObject(get("/session/$sessionId", timeoutMs))
+            .optJSONObject("metadata") ?: JSONObject()
+        val updated = JSONObject()
+        existing.keys().forEach { key -> updated.put(key, existing.get(key)) }
+        updated.put("cody_pinned", pinned)
+        request("PATCH", "/session/$sessionId", updated.toString(), timeoutMs)
+        true
+    } catch (t: Throwable) {
+        Log.w(TAG, "Could not ${if (pinned) "pin" else "unpin"} $sessionId: ${t.message?.take(120)}")
         false
     }
 

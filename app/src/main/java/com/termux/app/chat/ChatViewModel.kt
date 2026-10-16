@@ -24,6 +24,15 @@ data class ChatUiState(
      */
     val fallbackPool: List<ModelInfo> = emptyList(),
     val agents: List<AgentInfo> = emptyList(),
+    /**
+     * Installed agent skills, from `GET /skill`.
+     *
+     * Never a list bundled with the app: skills live in global and project directories and can
+     * change without the app changing, so opencode is the only thing that knows what is installed.
+     */
+    val skills: List<SkillInfo> = emptyList(),
+    /** Files the agent has changed in the working project, for the header's change panel. */
+    val files: List<FileStatus> = emptyList(),
     /** Provider ids opencode reports as connected, shown in the picker so the user can see what is set up. */
     val providers: List<String> = emptyList(),
     /** Reasoning-effort variants the catalogue reports for [selectedModel]; empty when it has none. */
@@ -108,6 +117,15 @@ class ChatViewModel(application: Application) : AndroidViewModel(application) {
     fun answerQuestion(answers: List<List<String>>) = OpenCodeRuntime.answerQuestion(answers)
     fun rejectQuestion() = OpenCodeRuntime.rejectQuestion()
     fun refreshPending() = OpenCodeRuntime.refreshPending()
+
+    /** Re-reads the installed skills, for the picker beside the mode switch. */
+    fun loadSkills() = OpenCodeRuntime.loadSkills()
+
+    /** Re-reads the changed-file list behind the header's change panel. */
+    fun refreshFiles() = OpenCodeRuntime.refreshFiles()
+
+    /** Pins or unpins a conversation. Server-side, so it survives a reinstall. */
+    fun togglePin(sessionId: String) = OpenCodeRuntime.togglePin(sessionId)
 
     /** Answers the turn that starts at [userMessageId] again, from a fresh run of the model. */
     fun regenerate(userMessageId: String) = OpenCodeRuntime.regenerate(userMessageId)

@@ -68,6 +68,9 @@ object OpenCodeRuntime {
     private var eventsActive = false
     private var sendJob: Job? = null
 
+    /** Debounce for the changed-file list, which updates on every `file.edited` event. */
+    private const val FILE_REFRESH_MS = 700L
+
     // -------------------------------------------------------------------------------------------
     // Lifecycle
     // -------------------------------------------------------------------------------------------
@@ -110,6 +113,8 @@ object OpenCodeRuntime {
             OpenCodeService.publishStatus(app, "OpenCode is ready.")
             startEventStream()
             loadMeta()
+            loadSkills()
+            refreshFiles()
             refreshSessions(pickRecent = true)
             refreshPending()
         }
@@ -248,6 +253,74 @@ object OpenCodeRuntime {
     fun refreshCatalogue() = loadMeta()
 
     /**
+     * Reads the installed skills. Separate from [loadMeta] because it is not part of the model
+     * catalogue and a failure here should not empty the picker of models.
+     */
+    fun loadSkills() {
+        scope.launch {
+            val skills = withContext(Dispatchers.IO) { OpenCodeApi.skills() }
+            _state.update { it.copy(skills = skills) }
+            Log.i(TAG, "Loaded ${skills.size} skill(s)")
+        }
+    }
+
+    /**
+     * Re-reads the changed-file list.
+     *
+     * Called at startup and on every `file.edited` event, so the header count tracks the agent
+     * without polling. The workspace directory is not passed: the server already resolves the
+     * session's own project, and guessing a path here would report a different tree.
+     */
+    fun refreshFiles() {
+        scope.launch {
+            val files = withContext(Dispatchers.IO) { OpenCodeApi.fileStatus() }
+            _state.update { it.copy(files = files) }
+        }
+    }
+
+    /**
+     * Re-reads the file list at most once every [FILE_REFRESH_MS].
+     *
+     * The agent writes in bursts — a formatter plus a rename plus a rewrite can land four events in
+     * a second — and each refresh is an HTTP round trip. Without this the panel would hammer the
+     * server exactly when it is busiest.
+     */
+    private var fileRefreshJob: Job? = null
+
+    private fun scheduleFileRefresh() {
+        if (fileRefreshJob?.isActive == true) return
+        fileRefreshJob = scope.launch {
+            delay(FILE_REFRESH_MS)
+            refreshFiles()
+        }
+    }
+
+    /**
+     * Pins or unpins a conversation, server-side.
+     *
+     * The local list is updated optimistically and then reconciled from the server's answer. If
+     * the write is refused the pin reverts, because a pin the drawer does not show is worse than
+     * one that never appeared.
+     */
+    fun togglePin(sessionId: String) {
+        val current = _state.value.sessions.firstOrNull { it.id == sessionId } ?: return
+        val next = !current.pinned
+        _state.update { state -> state.copy(sessions = state.sessions.map { if (it.id == sessionId) it.copy(pinned = next) else it }) }
+        scope.launch {
+            val ok = withContext(Dispatchers.IO) { OpenCodeApi.setPinned(sessionId, next) }
+            if (!ok) {
+                _state.update { state ->
+                    state.copy(
+                        sessions = state.sessions.map { if (it.id == sessionId) it.copy(pinned = !next) else it },
+                        error = "Could not pin that chat.",
+                    )
+                }
+            }
+            refreshSessions(pickRecent = false)
+        }
+    }
+
+    /**
      * Raises a foreground service so the OS does not reclaim the process while a prompt is in
      * flight — this is what lets the reply continue after the user exits the app.
      */
@@ -290,6 +363,10 @@ object OpenCodeRuntime {
             type == "message.updated" -> onMessageUpdated(props)
             type == "message.part.updated" -> onPartUpdated(props)
             type == "message.part.delta" -> onPartDelta(props)
+
+            // The agent just wrote something. The change panel would otherwise only refresh on
+            // launch, so the count in the header would sit at zero through an entire session.
+            type == "file.edited" -> scheduleFileRefresh()
 
             // The server drops a message when it is deleted, which is what regenerate and
             // edit-prompt do. Without this the row would sit on screen until the next full history

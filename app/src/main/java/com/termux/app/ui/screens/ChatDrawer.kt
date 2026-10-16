@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Handyman
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.AlertDialog
@@ -53,6 +55,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -83,6 +86,7 @@ fun ChatDrawer(
     onSelect: (String) -> Unit,
     onDelete: (String) -> Unit,
     onRename: (String, String) -> Unit,
+    onTogglePin: (String) -> Unit,
     onOpenFiles: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSetup: () -> Unit,
@@ -92,6 +96,7 @@ fun ChatDrawer(
 ) {
     val scope = rememberCoroutineScope()
     var renaming by remember { mutableStateOf<SessionInfo?>(null) }
+    var menuFor by remember { mutableStateOf<SessionInfo?>(null) }
 
     ModalNavigationDrawer(
         drawerState = drawerState,
@@ -179,7 +184,15 @@ fun ChatDrawer(
                         )
                     } else {
                         LazyColumn(modifier = Modifier.heightIn(max = 420.dp)) {
-                            items(sessions, key = { it.id }) { session ->
+                            // Pinned first, then by recency within each group. A pin the user
+                            // cannot find is the same as no pin.
+                            items(
+                                sessions.sortedWith(
+                                    compareByDescending<SessionInfo> { it.pinned }
+                                        .thenByDescending { it.updated },
+                                ),
+                                key = { it.id },
+                            ) { session ->
                                 SwipeToDelete(
                                     onDelete = { onDelete(session.id) },
                                 ) {
@@ -194,23 +207,25 @@ fun ChatDrawer(
                                                 .padding(start = 20.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                                         ) {
                                             Column(modifier = Modifier.padding(end = 28.dp)) {
-                                                Text(
-                                                    text = session.title,
-                                                    color = if (session.id == currentId) AccentSoft else TextPrimary,
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                )
-                                                // A conversation list without dates is just a list of
-                                                // titles — "Recents" only means something if you can
-                                                // see how recent. Relative for the last week, absolute
-                                                // beyond it, because "43 days ago" stops helping.
-                                                if (session.updated > 0) {
+                                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                                    // A pinned row leads with the mark rather than
+                                                    // a different colour: on a phone, position is
+                                                    // read faster than hue.
+                                                    if (session.pinned) {
+                                                        Icon(
+                                                            Icons.Outlined.PushPin,
+                                                            contentDescription = "Pinned",
+                                                            tint = AccentSoft,
+                                                            modifier = Modifier.size(12.dp),
+                                                        )
+                                                        Spacer(Modifier.width(6.dp))
+                                                    }
                                                     Text(
-                                                        text = remember(session.updated) { relativeDate(session.updated) },
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontSize = 10.sp,
-                                                        color = TextMuted,
+                                                        text = session.title,
+                                                        color = if (session.id == currentId) AccentSoft else TextPrimary,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        maxLines = 1,
+                                                        overflow = TextOverflow.Ellipsis,
                                                     )
                                                 }
                                             }
@@ -222,7 +237,7 @@ fun ChatDrawer(
                                                     .align(Alignment.CenterEnd)
                                                     .size(18.dp)
                                                     .clip(CircleShape)
-                                                    .clickable { renaming = session },
+                                                    .clickable { menuFor = session },
                                             )
                                         }
                                 }
@@ -242,6 +257,21 @@ fun ChatDrawer(
         },
     ) {
         content()
+    }
+
+    menuFor?.let { session ->
+        SessionMenu(
+            session = session,
+            onRename = {
+                menuFor = null
+                renaming = session
+            },
+            onTogglePin = {
+                menuFor = null
+                onTogglePin(session.id)
+            },
+            onDismiss = { menuFor = null },
+        )
     }
 
     renaming?.let { session ->
@@ -313,25 +343,71 @@ private fun RenameDialog(initial: String, onConfirm: (String) -> Unit, onDismiss
     )
 }
 
+
 /**
- * "Just now", "3h", "Yesterday", "Mar 4" for a conversation's last update.
+ * The per-conversation menu, behind the ⋮.
  *
- * Relative inside the last week because that is the window where people actually compare
- * conversations; a real date beyond it, since "43 days ago" stops telling you anything useful.
+ * Pin and Rename only. Delete stays on the swipe, deliberately: it is the one action here that is
+ * hard to undo, and a menu item two taps from a title is one mis-tap too many.
  */
-private fun relativeDate(epochMillis: Long): String {
-    val now = System.currentTimeMillis()
-    val delta = now - epochMillis
-    // Clock skew between the host and opencode's server can make a just-written session look like
-    // it is from the future. Treat anything within a minute as "Just now" rather than rendering
-    // "in 4 seconds".
-    if (delta < 60_000L) return "Just now"
-    val minutes = delta / 60_000L
-    if (minutes < 60) return "${minutes}m"
-    val hours = minutes / 60
-    if (hours < 24) return "${hours}h"
-    val days = hours / 24
-    if (days == 1L) return "Yesterday"
-    if (days < 7L) return "${days}d"
-    return SimpleDateFormat("MMM d", Locale.getDefault()).format(Date(epochMillis))
+@Composable
+private fun SessionMenu(
+    session: SessionInfo,
+    onRename: () -> Unit,
+    onTogglePin: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = BgElevated,
+        properties = DialogProperties(usePlatformDefaultWidth = false),
+        modifier = Modifier.padding(horizontal = 40.dp),
+        title = {
+            Text(
+                session.title,
+                color = TextPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        text = {
+            Column {
+                SessionMenuRow(
+                    icon = Icons.Outlined.PushPin,
+                    label = if (session.pinned) "Unpin" else "Pin to top",
+                    onClick = onTogglePin,
+                )
+                SessionMenuRow(
+                    icon = Icons.Outlined.Edit,
+                    label = "Rename",
+                    onClick = onRename,
+                )
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Close", color = TextMuted) }
+        },
+    )
+}
+
+@Composable
+private fun SessionMenuRow(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 4.dp, vertical = 11.dp),
+    ) {
+        Icon(icon, contentDescription = null, tint = TextMuted, modifier = Modifier.size(17.dp))
+        Spacer(Modifier.width(12.dp))
+        Text(label, color = TextPrimary, style = MaterialTheme.typography.bodyMedium)
+    }
 }

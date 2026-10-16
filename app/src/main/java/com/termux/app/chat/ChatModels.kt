@@ -67,10 +67,45 @@ data class ChatMessage(
         get() = parts.filter { it.type == "text" }.joinToString("") { it.text }
 }
 
+/**
+ * An agent skill opencode advertises, from `GET /skill`.
+ *
+ * The picker lists whatever the server reports rather than a list bundled with the app: skills are
+ * user- and project-defined, and opencode is the only thing that knows which ones are installed.
+ * Hardcoding names here would show a skill that does not exist and hide one that does.
+ */
+data class SkillInfo(
+    val name: String,
+    val description: String,
+    val location: String = "",
+)
+
+/** One file the agent has changed, from `GET /file/status`. */
+data class FileStatus(
+    val path: String,
+    val status: String,
+    val added: Int = 0,
+    val removed: Int = 0,
+) {
+    val isAdded: Boolean get() = status == "added"
+    val isDeleted: Boolean get() = status == "deleted"
+}
+
+/** The folder a file sits in, for grouping the change panel. */
+val FileStatus.folder: String
+    get() = path.substringBeforeLast('/', "").ifEmpty { "." }
+
 data class SessionInfo(
     val id: String,
     val title: String,
     val updated: Long,
+    /**
+     * Stored in the session's own `metadata`, not in app preferences.
+     *
+     * The server has no `pinned` field, but it does accept a metadata object on PATCH and returns
+     * it on read — so a pin travels with the conversation instead of dying with the install.
+     */
+    val pinned: Boolean = false,
     /** The title the server itself reported, kept so a local rename can be undone. */
     val serverTitle: String = title,
 )

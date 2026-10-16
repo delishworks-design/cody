@@ -60,7 +60,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowUp
-import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.OpenInNew
@@ -84,6 +83,10 @@ import androidx.compose.material.icons.outlined.Bolt
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.SmartToy
 import androidx.compose.material.icons.outlined.Terminal
+import androidx.compose.material.icons.outlined.DragHandle
+import androidx.compose.material.icons.outlined.FolderOpen
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material.icons.outlined.ViewInAr
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -202,6 +205,7 @@ fun ChatScreen(
     val state by viewModel.state.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
     var showFiles by remember { mutableStateOf(false) }
+    var showChanges by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -342,6 +346,7 @@ fun ChatScreen(
         onSelect = viewModel::selectSession,
         onDelete = viewModel::deleteSession,
         onRename = viewModel::renameSession,
+        onTogglePin = viewModel::togglePin,
         onOpenFiles = { showFiles = true },
         onOpenSettings = onOpenSettings,
         onOpenSetup = onOpenSetup,
@@ -370,6 +375,8 @@ fun ChatScreen(
                 ?: state.messages.lastOrNull { it.isUser }?.text?.take(40)
                 ?: "New chat",
             onOpenDrawer = { scope.launch { drawerState.open() } },
+            changedFiles = state.files.size,
+            onOpenFiles = { showChanges = true },
         )
         state.error?.let { message ->
             ErrorBanner(message = message, onDismiss = viewModel::dismissError)
@@ -463,11 +470,31 @@ fun ChatScreen(
             state.notice?.let { notice ->
                 NoticeBar(message = notice, onDismiss = viewModel::dismissNotice)
             }
-            ModeSwitch(
-                selected = state.selectedAgent,
-                agents = state.agents,
-                onPick = viewModel::selectAgent,
-            )
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 2.dp),
+            ) {
+                ModeSwitch(
+                    selected = state.selectedAgent,
+                    agents = state.agents,
+                    onPick = viewModel::selectAgent,
+                )
+                SkillPicker(
+                    skills = state.skills,
+                    // Inserts `/name` rather than sending: the user should see what they picked and
+                    // be able to edit the sentence around it before it goes.
+                    onPick = { skill ->
+                        val prefix = "/${skill.name} "
+                        val existing = state.input
+                        viewModel.onManualInputChange(
+                            if (existing.startsWith("/")) existing else prefix + existing
+                        )
+                    },
+                )
+            }
             Composer(
                 value = state.input,
                 busy = state.busy,
@@ -514,6 +541,9 @@ fun ChatScreen(
     if (showFiles) {
         FilesSheet(onDismiss = { showFiles = false })
     }
+    if (showChanges) {
+        FileTreePanel(files = state.files, onDismiss = { showChanges = false })
+    }
     }
 }
 
@@ -533,6 +563,8 @@ fun ChatScreen(
 private fun ChatTopBar(
     title: String,
     onOpenDrawer: () -> Unit,
+    changedFiles: Int,
+    onOpenFiles: () -> Unit,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -542,7 +574,9 @@ private fun ChatTopBar(
             .padding(horizontal = 4.dp, vertical = 4.dp),
     ) {
         IconButton(onClick = onOpenDrawer) {
-            Icon(Icons.Filled.Menu, contentDescription = "Conversations", tint = TextPrimary)
+            // DragHandle rather than Menu: three filled lines is the old hamburger, and the two-line
+            // outline is the minimal version this bar now uses everywhere else.
+            Icon(Icons.Outlined.DragHandle, contentDescription = "Conversations", tint = TextPrimary)
         }
         // Centred between the two ends of the row, with real padding so a long conversation name
         // ellipsizes instead of running under the hamburger or off the edge. The trailing button is
@@ -563,11 +597,35 @@ private fun ChatTopBar(
                 textAlign = TextAlign.Center,
             )
         }
-        Spacer(
-            modifier = Modifier
-                .width(48.dp)
-                .height(48.dp),
-        )
+        // What the agent has touched, so "is it doing anything" is answerable without scrolling
+        // the transcript. The badge is the point; the sheet it opens is the detail.
+        Box(contentAlignment = Alignment.TopEnd) {
+            IconButton(onClick = onOpenFiles) {
+                Icon(
+                    Icons.Outlined.FolderOpen,
+                    contentDescription = "Changed files",
+                    tint = if (changedFiles > 0) AccentSoft else TextMuted,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+            if (changedFiles > 0) {
+                Box(
+                    modifier = Modifier
+                        .padding(top = 4.dp, end = 4.dp)
+                        .size(15.dp)
+                        .clip(CircleShape)
+                        .background(Accent)
+                        .border(1.dp, BgElevated, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        text = if (changedFiles > 9) "9+" else changedFiles.toString(),
+                        fontSize = 8.sp,
+                        color = Color.White,
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -613,7 +671,6 @@ private fun MessageRow(
                     showActions = false
                     editing = true
                 },
-                onDone = { showActions = false },
             )
         }
         Spacer(
@@ -626,11 +683,14 @@ private fun MessageRow(
 }
 
 /**
- * The row of actions under a tapped message.
+ * The row of actions under a tapped message: icons only.
  *
- * Regenerate and Edit only appear on a user turn, and only when the turn can actually be re-run: the
- * server replaces the question and everything after it, so offering it on an assistant reply would
- * mean guessing which question it belongs to. It is also hidden while a reply is streaming, since
+ * Three text buttons in a row read as a toolbar stuck under every message. Three glyphs read as
+ * controls that mean what they look like, which is the whole point of copy being a copy icon.
+ *
+ * Regenerate and Edit appear on a user turn only, and only when the turn can actually be re-run:
+ * the server replaces the question and everything after it, so offering it on an assistant reply
+ * would mean guessing which question it belongs to. It is hidden while a reply is streaming too —
  * deleting the turn underneath a live reply would race it.
  */
 @Composable
@@ -639,7 +699,6 @@ private fun CopyChip(
     canRegenerate: Boolean,
     onRegenerate: () -> Unit,
     onEdit: () -> Unit,
-    onDone: () -> Unit,
 ) {
     val clipboard = LocalClipboardManager.current
     val scope = rememberCoroutineScope()
@@ -647,29 +706,39 @@ private fun CopyChip(
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.padding(top = 4.dp, start = 4.dp),
+        modifier = Modifier.padding(start = 2.dp, top = 2.dp),
     ) {
-        TextButton(onClick = onDone) {
-            Text("Close", color = TextMuted, fontSize = 12.sp)
-        }
-        TextButton(
-            onClick = {
-                clipboard.setText(AnnotatedString(text))
-                copied = true
-                scope.launch {
-                    delay(1_600)
-                    copied = false
-                }
-            },
-        ) {
-            Text(if (copied) "Copied" else "Copy message", color = if (copied) Success else AccentSoft, fontSize = 12.sp)
+        IconButton(onClick = {
+            clipboard.setText(AnnotatedString(text))
+            copied = true
+            scope.launch {
+                delay(1_600)
+                copied = false
+            }
+        }, modifier = Modifier.size(32.dp)) {
+            Icon(
+                if (copied) Icons.Filled.Check else Icons.Outlined.ContentCopy,
+                contentDescription = if (copied) "Copied" else "Copy message",
+                tint = if (copied) Success else TextMuted,
+                modifier = Modifier.size(15.dp),
+            )
         }
         if (canRegenerate) {
-            TextButton(onClick = onEdit) {
-                Text("Edit", color = AccentSoft, fontSize = 12.sp)
+            IconButton(onClick = onEdit, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Outlined.Edit,
+                    contentDescription = "Edit prompt",
+                    tint = TextMuted,
+                    modifier = Modifier.size(15.dp),
+                )
             }
-            TextButton(onClick = onRegenerate) {
-                Text("Regenerate", color = AccentSoft, fontSize = 12.sp)
+            IconButton(onClick = onRegenerate, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Outlined.Refresh,
+                    contentDescription = "Regenerate",
+                    tint = TextMuted,
+                    modifier = Modifier.size(15.dp),
+                )
             }
         }
     }
@@ -1890,6 +1959,9 @@ private fun ModeSwitch(
     }
 }
 
+/** Shared left inset for the composer's text and its control row. One number, both children. */
+private val COMPOSER_INSET = 14.dp
+
 @Composable
 private fun Composer(
     value: String,
@@ -1931,7 +2003,17 @@ private fun Composer(
             border = BorderStroke(1.dp, Border),
             modifier = Modifier.fillMaxWidth(),
         ) {
-            Column(modifier = Modifier.padding(start = 14.dp, end = 8.dp, top = 10.dp, bottom = 8.dp)) {
+            // One inset for the text and the control row below it. They were 14dp and 8dp
+            // respectively, so the "+" glyph sat ~19dp right of the first character and the field
+            // read as misaligned. Every child starts at the same x now.
+            Column(
+                modifier = Modifier.padding(
+                    start = COMPOSER_INSET,
+                    end = 8.dp,
+                    top = 10.dp,
+                    bottom = 8.dp,
+                ),
+            ) {
                 BasicTextField(
                     value = value,
                     onValueChange = onChange,
@@ -2021,7 +2103,7 @@ private fun Composer(
                             .clickable(onClick = onAction),
                     ) {
                         Icon(
-                            imageVector = if (busy) Icons.Filled.Stop else Icons.Filled.ArrowUpward,
+                            imageVector = if (busy) Icons.Outlined.Stop else Icons.Outlined.ArrowUpward,
                             contentDescription = if (busy) "Stop" else "Send",
                             tint = Color.White,
                             modifier = Modifier.size(20.dp),
@@ -2424,7 +2506,7 @@ private fun PlusMenu(
 }
 
 @Composable
-private fun MenuHeading(text: String) {
+internal fun MenuHeading(text: String) {
     Text(
         text = text.uppercase(),
         style = MaterialTheme.typography.labelSmall,
