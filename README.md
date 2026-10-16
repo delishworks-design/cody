@@ -44,7 +44,7 @@ ads.
 ## Features
 
 - **Chat interface** (the default): a Claude Code-style conversation view with streaming replies,
-  collapsible reasoning, live tool-call cards and a composer. The raw shell is one tap away.
+  collapsible reasoning, live tool-call cards and a composer.
 - **Model picker**: free models only. A search field, a `no images` marker on text-only ones, and an
   **Auto · free** entry at the top that picks the strongest available free model for you. Selection
   is per session and restored when you reopen it.
@@ -76,10 +76,6 @@ ads.
 - Works behind corporate TLS inspection: setup mirrors the device trust store (system **and** user
   CAs) into the Termux and Debian CA bundles before anything downloads, and can accept a root CA
   that only exists on your machine — see [Corporate networks](#corporate-networks--tls-inspection).
-- Full terminal: extra-keys bar (Ctrl, Alt, Shift, Esc, Tab, arrows, Home/End, Ctrl+C/D/Z), pinch to
-  zoom, Ctrl-C shortcut, copy & paste.
-- The **opencode TUI**, a **Termux shell**, and a **Debian login shell** are all reachable from the
-  drawer when you want the raw thing instead of the chat UI.
 - Foreground service keeps your sessions alive in the background.
 - Dark UI built around the Cody mark — a rounded square with two eyes and a smile, drawn once and
   reused by the drawer, the initialising screen and the launcher icon.
@@ -209,8 +205,12 @@ If provisioning is interrupted, it resumes rather than restarting: the provision
 got and skips completed steps on the next launch. *Setup* in the drawer re-runs it on demand, and the
 **Run setup again** button on the ready panel forces a fresh pass.
 
-Optional: a **Termux shell** and a **Debian login shell** are reachable from the drawer for
-apt/node tooling and a plain Debian bash respectively.
+> **The terminal is not reachable from the UI yet.** A full terminal screen ships in the build —
+> extra-keys bar, font sizing, Ctrl-C — and the service it would attach to is already running, but
+> nothing in the app launches it: `TerminalActivity` is imported in `MainActivity` and never started,
+> and the drawer offers only *Files*, *Connect a provider* and *Setup*. It is listed here as a known
+> gap rather than a feature, because a reader who cannot find it should be told why. Wiring it up is
+> a drawer row and a `startActivity` call.
 
 ## Environment provisioning
 
