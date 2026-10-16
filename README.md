@@ -84,6 +84,33 @@ ads.
 - Dark UI built around the Cody mark — a rounded square with two eyes and a smile, drawn once and
   reused by the drawer, the initialising screen and the launcher icon.
 
+## Preview
+
+| Chat | Drawer | Terminal |
+| --- | --- | --- |
+| ![The chat screen](docs/preview-chat.png) | ![The conversation drawer](docs/preview-drawer.png) | ![The terminal](docs/preview-terminal.png) |
+
+Everything above runs on the phone alone — the streaming chat, the drawer and the terminal are all
+the real app, not a mock-up.
+
+## Installation
+
+You do not need a PC, a root tool or an account to install Cody.
+
+1. Get the APK. Each build of `main` publishes a signed APK; grab it from the
+   [Actions tab](https://github.com/delishworks-design/cody/actions) → open the latest green
+   **Build release APK** run → **Artifacts** → download `cody-release-apk` and unzip it. Inside is
+   `cody-<date>-<n>.apk`.
+2. Uninstall the official Termux app first if you have it. Only one app on a device can own the
+   `com.termux` package id (see [Why is the applicationId `com.termux`?](#why-is-the-applicationid-comtermux)),
+   and Cody needs it.
+3. Open the APK on your phone and allow installing from your file manager when Android asks.
+4. Open Cody and wait. The first run provisions itself — see [First run](#first-run).
+
+That is the whole flow. There is no server to start, no key to paste, and nothing to sign in to.
+
+> Prefer to build it yourself instead? See [Building](#building).
+
 ## Requirements
 
 - Android 7.0 (API 24) or newer. A **64-bit device** (arm64-v8a) is strongly recommended.
