@@ -26,8 +26,30 @@ data class Credential(
      * "Deploy previews and project linking" tells the user why they are being asked for something
      * that does not say "Vercel"; "Vercel" again would not.
      */
-    val purpose: String get() = PURPOSE[envVar].orEmpty()
+    val purpose: String get() = PURPOSES[envVar].orEmpty()
 }
+
+/**
+ * What each variable is for, shown under the field.
+ *
+ * Top level rather than nested in the catalogue, because [Credential.purpose] reads it and a
+ * property getter in the data class cannot reach an object declared later in the file.
+ */
+private val PURPOSES = mapOf(
+    "GH_TOKEN" to "Push, pull and open PRs. Also makes the `gh` CLI work.",
+    "GITHUB_TOKEN" to "Push, pull and open PRs.",
+    "VERCEL_TOKEN" to "Deploy previews and link projects. Makes `vercel` work.",
+    "SUPABASE_ACCESS_TOKEN" to "Manage linked projects. Makes `supabase` work.",
+    "ANTHROPIC_API_KEY" to "Claude models, if you would rather not go through opencode's provider list.",
+    "OPENAI_API_KEY" to "OpenAI models.",
+    "GEMINI_API_KEY" to "Gemini models.",
+    "OPENROUTER_API_KEY" to "One key covering many models.",
+    "CLOUDFLARE_API_TOKEN" to "Workers, Pages and R2.",
+    "FIGMA_ACCESS_TOKEN" to "Read design files, export assets.",
+    "STRIPE_SECRET_KEY" to "Payments, for apps you build with billing.",
+    "SENTRY_AUTH_TOKEN" to "Upload source maps and read issues.",
+    "RESEND_API_KEY" to "Send email from the apps you build.",
+)
 
 /**
  * The services offered out of the box.
@@ -115,22 +137,6 @@ object CredentialCatalog {
         ),
     )
 
-    /** What each variable is for, shown under the field. */
-    private val PURPOSE = mapOf(
-        "GH_TOKEN" to "Push, pull and open PRs. Also makes the `gh` CLI work.",
-        "GITHUB_TOKEN" to "Push, pull and open PRs.",
-        "VERCEL_TOKEN" to "Deploy previews and link projects. Makes `vercel` work.",
-        "SUPABASE_ACCESS_TOKEN" to "Manage linked projects. Makes `supabase` work.",
-        "ANTHROPIC_API_KEY" to "Claude models, if you would rather not go through opencode's provider list.",
-        "OPENAI_API_KEY" to "OpenAI models.",
-        "GEMINI_API_KEY" to "Gemini models.",
-        "OPENROUTER_API_KEY" to "One key covering many models.",
-        "CLOUDFLARE_API_TOKEN" to "Workers, Pages and R2.",
-        "FIGMA_ACCESS_TOKEN" to "Read design files, export assets.",
-        "STRIPE_SECRET_KEY" to "Payments, for apps you build with billing.",
-        "SENTRY_AUTH_TOKEN" to "Upload source maps and read issues.",
-        "RESEND_API_KEY" to "Send email from the apps you build.",
-    )
 
     fun builtin(id: String): Credential? = BUILTINS.firstOrNull { it.id == id }
 

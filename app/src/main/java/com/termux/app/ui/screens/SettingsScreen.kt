@@ -92,7 +92,7 @@ fun SettingsScreen(
     var values by remember(revision) {
         mutableStateOf(credentials.associate { it.id to (CredentialStore.secret(context, it.id) ?: "") })
     }
-    val revealed by remember { mutableStateOf(emptySet<String>()) }
+    var revealed by remember { mutableStateOf(emptySet<String>()) }
     var showAdd by remember { mutableStateOf(false) }
 
     val setCount = credentials.count { values[it.id]?.isNotBlank() == true }

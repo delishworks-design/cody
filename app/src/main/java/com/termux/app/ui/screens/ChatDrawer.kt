@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.AddComment
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.Handyman
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terminal
 import androidx.compose.material3.AlertDialog
@@ -234,7 +235,7 @@ fun ChatDrawer(
                     DrawerRow(Icons.Filled.Folder, "Files", onOpenFiles)
                     DrawerRow(Icons.Outlined.Terminal, "Terminal", onOpenTerminal)
                     DrawerRow(Icons.Outlined.Settings, "Settings", onOpenSettings)
-                    DrawerRow(Icons.Filled.Settings, "Setup", onOpenSetup)
+                    DrawerRow(Icons.Outlined.Handyman, "Setup", onOpenSetup)
                     Spacer(modifier = Modifier.height(24.dp))
                 }
             }
