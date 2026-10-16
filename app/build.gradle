@@ -126,6 +126,15 @@ tasks.register('downloadBootstraps') {
                 throw new GradleException("Missing bootstrap archive: ${src}. " +
                         "Run scripts/fetch-bootstraps.ps1 or place it in .cache/bootstraps/.")
             }
+            if (src.length() < 1_000_000L) {
+                throw new GradleException("Bootstrap archive is suspiciously small (${src.length()} bytes): ${src}. " +
+                        "It is likely a stale/failed download. Delete it and re-run scripts/fetch-bootstraps.ps1.")
+            }
+            try {
+                new java.util.zip.ZipFile(src).close()
+            } catch (java.io.IOException e) {
+                throw new GradleException("Bootstrap archive is not a valid zip: ${src}.", e)
+            }
             copy { from src; into jniDir }
         }
         copy { from new File(cppDir, 'Android.mk'); into jniDir }

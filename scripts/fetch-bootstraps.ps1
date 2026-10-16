@@ -30,7 +30,14 @@ foreach ($arch in $arches.Keys) {
     $url = "$base/bootstrap-$arch.zip"
     Write-Host "Downloading $url"
     Invoke-WebRequest -Uri $url -Headers $headers -OutFile $file -TimeoutSec 600
+    # Validate the payload: a stale cache from an older/dead URL used to be a 9-byte "Not Found"
+    # page, which silently produced a 17 MB APK with no embedded rootfs.
     $size = (Get-Item $file).Length
+    $magic = [System.IO.File]::ReadAllBytes($file)[0..3]
+    if ($size -lt 1MB -or $magic[0] -ne 0x50 -or $magic[1] -ne 0x4B) {
+        Remove-Item $file -Force
+        throw "Downloaded file is not a valid bootstrap archive: $url"
+    }
     Write-Host ("  -> {0} ({1:N0} bytes)" -f $file, $size)
 }
 

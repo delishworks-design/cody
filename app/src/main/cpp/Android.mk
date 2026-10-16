@@ -6,6 +6,6 @@ include $(CLEAR_VARS)
 LOCAL_MODULE := libtermux-bootstrap
 LOCAL_SRC_FILES := termux-bootstrap-zip.S termux-bootstrap.c
 LOCAL_CFLAGS := -O2
-LOCAL_LDFLAGS := -Wl,--gc-sections
+LOCAL_LDFLAGS := -Wl,--gc-sections -Wl,--undefined=blob
 
 include $(BUILD_SHARED_LIBRARY)
