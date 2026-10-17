@@ -214,6 +214,7 @@ fun ChatScreen(
     // the microphone, so it is stopped on the way out of the screen.
     var listening by remember { mutableStateOf(false) }
     var dictationError by remember { mutableStateOf<String?>(null) }
+    var micPermissionGranted by remember { mutableStateOf(Dictation.hasPermission(context)) }
     val micPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
@@ -222,7 +223,6 @@ fun ChatScreen(
     }
 
     val whisperReady = remember { Whisper.isInstalled() }
-    var micPermissionGranted by remember { mutableStateOf(Dictation.hasPermission(context)) }
     val recorder = remember {
         PcmRecorder(File(context.cacheDir, "dictation-${System.currentTimeMillis()}.wav"))
     }
