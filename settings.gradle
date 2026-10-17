@@ -13,6 +13,6 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "OpenCode"
+rootProject.name = "Cody"
 
 include ':app', ':terminal-emulator', ':terminal-view'

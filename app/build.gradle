@@ -6,8 +6,8 @@ plugins {
 
 // The embedded Termux backend requires the applicationId to be "com.termux", because the
 // bootstrap binaries and shared libraries that Termux ships have the path
-// /data/data/com.termux/files/usr hard-coded into them. The user-facing app name is still
-// "OpenCode". See README.md for details.
+// /data/data/com.termux/files/usr hard-coded into them. The user-facing app name is "Cody"; only
+// the package identifier stays "com.termux". See README.md for details.
 def termuxPackageName = "com.termux"
 
 android {

@@ -62,7 +62,7 @@ class OpenCodeService : Service() {
                 else -> statusText ?: "Getting ready…"
             }
             return builder
-                .setContentTitle("OpenCode")
+                .setContentTitle("Cody")
                 .setContentText(caption)
                 .setSmallIcon(android.R.drawable.stat_sys_upload_done)
                 .setContentIntent(contentIntent)

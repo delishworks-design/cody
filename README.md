@@ -203,10 +203,10 @@ provisions itself in the background, so there is no setup wizard to hunt for.
 
 You do not need a PC, a root tool or an account to install Cody.
 
-1. Get the APK. Each build of `main` publishes a signed APK; grab it from the
+1. Get the APK. Each build of `main` publishes a debug APK; grab it from the
    [Actions tab](https://github.com/delishworks-design/cody/actions) → open the latest green
-   **Build release APK** run → **Artifacts** → download `cody-release-apk` and unzip it. Inside is
-   `cody-<date>-<n>.apk`.
+   **Build Debug APK** run → **Artifacts** → download `cody-debug` and unzip it. Inside is
+   `app-debug.apk`.
 2. Uninstall the official Termux app first if you have it. Only one app on a device can own the
    `com.termux` package id (see [Why is the applicationId `com.termux`?](#why-is-the-applicationid-comtermux)),
    and Cody needs it.
@@ -343,11 +343,13 @@ the CA at.
 Four steps work around proot and packaged-tool limitations that are worth knowing about before
 debugging them again:
 
-- **`03` patches Python's SSL.** proot-distro fetches the rootfs with `urllib`, and Python has no
-  environment variable for "skip verification", so the script sets
-  `ssl._create_default_https_context = ssl._create_unverified_context` before handing over to
-  `runpy.run_path`. Only the rootfs download needs this; everything later goes through curl and
-  honours the real bundle.
+- **`03` falls back to Python's unverified SSL only when it must.** proot-distro fetches the rootfs
+  with `urllib`, and Python has no environment variable for "skip verification". Rather than
+  disable verification unconditionally, the script probes `https://deb.debian.org/` with the same
+  verifying client first and keeps verification on when it passes; only on a genuine failure does it
+  set `ssl._create_default_https_context = ssl._create_unverified_context` before handing over to
+  `runpy.run_path`, and it says so in the log. Only the rootfs download needs this; everything later
+  goes through curl and honours the real bundle.
 - **`06` installs the Vercel CLI with bun, not npm.** npm's `cacache` writes blobs by renaming a
   temp file into a content-addressed path, and that `rename()` reports `ENOENT` under proot on
   every cache location — `/root`, `/tmp` and `/dev/shm` all fail identically. bun is a single
@@ -500,7 +502,7 @@ each and the whole window stopped painting. If the viewer is black on an emulato
 ## Project layout
 
 ```
-opencode-android/
+cody/
 ├── app/
 │   ├── src/main/cpp/                 # libtermux-bootstrap.so (embedded rootfs)
 │   ├── src/main/assets/provision/    # shell scripts run by environment setup

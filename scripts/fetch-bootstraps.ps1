@@ -23,7 +23,7 @@ $arches = @{
     "x86_64"  = "x86_64"
 }
 
-$headers = @{ "User-Agent" = "opencode-android-build" }
+$headers = @{ "User-Agent" = "cody-build" }
 
 foreach ($arch in $arches.Keys) {
     $file = Join-Path $cacheDir "bootstrap-$arch.zip"
