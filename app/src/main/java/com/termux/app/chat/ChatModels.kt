@@ -64,7 +64,24 @@ data class ChatMessage(
 
     /** Concatenated assistant prose, ignoring tool chatter. */
     val text: String
-        get() = parts.filter { it.type == "text" }.joinToString("") { it.text }
+        get() {
+            val raw = parts.filter { it.type == "text" }.joinToString("") { it.text }
+            if (!isUser) return raw
+            // The app appends attachment paths and credential notes to the outgoing message so the
+            // agent can use them; those are not part of what the user typed and must not show up in
+            // the transcript. Strip them from the displayed text only.
+            val markers = listOf(
+                "\n\nThe user attached ",
+                "\n\nAlso on disk in the workspace:",
+                "\n\nThe user has service credentials configured",
+            )
+            var cut = raw.length
+            for (m in markers) {
+                val i = raw.indexOf(m)
+                if (i >= 0 && i < cut) cut = i
+            }
+            return raw.substring(0, cut).trimEnd()
+        }
 }
 
 /**
@@ -290,7 +307,7 @@ fun isLimitFailure(message: String?): Boolean {
     return LIMIT_WORDS.any { text.contains(it) }
 }
 
-private val LIMIT_CODES = listOf("http 429", "http 402", "http 403", "http 413")
+private val LIMIT_CODES = listOf("http 429", "http 402", "http 413")
 
 private val LIMIT_WORDS = listOf(
     "rate limit", "rate_limit", "too many requests", "quota", "insufficient_quota",

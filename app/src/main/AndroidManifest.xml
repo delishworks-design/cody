@@ -21,6 +21,11 @@
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
 
+    <!-- Guards the exported AgentActionReceiver so only this app can approve/reject prompts. -->
+    <permission
+        android:name="com.termux.app.permission.NOTIFICATION_ACTIONS"
+        android:protectionLevel="signature" />
+
     <application
         android:allowBackup="false"
         android:extractNativeLibs="true"
@@ -62,7 +67,8 @@
         -->
         <receiver
             android:name=".shell.AgentActionReceiver"
-            android:exported="true">
+            android:exported="true"
+            android:permission="com.termux.app.permission.NOTIFICATION_ACTIONS">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
                 <action android:name="com.termux.app.action.ALLOW_ONCE" />

@@ -217,11 +217,12 @@ fun ChatScreen(
     val micPermission = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
+        micPermissionGranted = granted || Dictation.hasPermission(context)
         if (!granted) dictationError = "Microphone permission is required."
     }
 
     val whisperReady = remember { Whisper.isInstalled() }
-    val micPermissionGranted = remember { Dictation.hasPermission(context) }
+    var micPermissionGranted by remember { mutableStateOf(Dictation.hasPermission(context)) }
     val recorder = remember {
         PcmRecorder(File(context.cacheDir, "dictation-${System.currentTimeMillis()}.wav"))
     }

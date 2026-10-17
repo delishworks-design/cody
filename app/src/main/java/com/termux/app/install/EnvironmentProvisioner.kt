@@ -5,6 +5,8 @@ import android.util.Log
 import com.termux.app.shell.ShellRunner
 import com.termux.app.shell.TermuxShellEnvironment
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -107,6 +109,7 @@ class EnvironmentProvisioner(private val context: Context) {
     }
 
     private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+    private val provisionLock = Mutex()
 
     fun isProvisioned(): Boolean = prefs.getBoolean(KEY_PROVISIONED, false)
 
@@ -149,6 +152,8 @@ class EnvironmentProvisioner(private val context: Context) {
      * was verified inside Debian.
      */
     suspend fun provision(onUpdate: (StepUpdate) -> Unit, fromIndex: Int = 0): Boolean = withContext(Dispatchers.IO) {
+        provisionLock.lock()
+        try {
         // Mirror Android's trust store (system + any corporate/user CA) before anything downloads.
         TlsTrustSync.installIntoTermux()
         val scriptDir = ensureScripts()
@@ -193,6 +198,9 @@ class EnvironmentProvisioner(private val context: Context) {
         val verified = verifyOpencodeAt(scriptDir)
         if (verified) setProvisioned(true)
         allOk && verified
+        } finally {
+            provisionLock.unlock()
+        }
     }
 
     /**
@@ -204,7 +212,7 @@ class EnvironmentProvisioner(private val context: Context) {
      * installed", which is the safe answer — it makes the step run rather than silently skip.
      */
     private fun containerHas(relativePath: String): Boolean =
-        File(TermuxPaths.DEBIAN_CONTAINER_ROOTFS + "/" + relativePath).exists()
+        File(TermuxPaths.DEBIAN_CONTAINER_ROOTFS + "/" + relativePath).isFile
 
     /** Returns true if an opencode executable can be found inside the Debian container. */
     suspend fun verifyOpencode(): Boolean = withContext(Dispatchers.IO) {

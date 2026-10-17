@@ -124,16 +124,35 @@ object WorkspaceFiles {
      */
     fun resolve(url: String, filename: String): File? {
         val debianRoot = File(TermuxPaths.DEBIAN_CONTAINER_ROOTFS)
+        val allowedRoots = listOf(
+            File(TermuxPaths.HOME),
+            debianRoot,
+            File(TermuxPaths.PREFIX, "tmp"),
+        ).mapNotNull { runCatching { it.canonicalFile }.getOrNull() }
+
+        fun contained(candidate: File): File? {
+            val canon = runCatching { candidate.canonicalFile }.getOrNull() ?: return null
+            if (!canon.isFile) return null
+            return if (allowedRoots.any { root ->
+                    canon.path == root.path || canon.path.startsWith(root.path + File.separator)
+                }) canon else null
+        }
 
         fun reRoot(path: String): File? {
             val clean = path.trim()
             if (clean.isEmpty()) return null
-            // Already an Android-side absolute path (it lives under /data/data/com.termux).
-            val direct = File(clean)
-            if (direct.isFile) return direct
-            val containerPath = clean.removePrefix("file://")
+            val containerPath = clean.removePrefix("file://").trim()
+            if (containerPath.isEmpty()) return null
+            // Already an Android-side absolute path: only accept it if it stays inside an allowed root.
+            contained(File(containerPath))?.let { return it }
             if (!containerPath.startsWith("/")) return null
-            return File(debianRoot, containerPath).takeIf { it.isFile }
+            // Container /tmp is shared with the Termux tmp directory.
+            if (containerPath == "/tmp" || containerPath.startsWith("/tmp/")) {
+                contained(File(TermuxPaths.PREFIX + "/tmp", containerPath.removePrefix("/tmp/").trimStart('/')))
+                    ?.let { return it }
+            }
+            // Container absolute path -> debian rootfs.
+            return contained(File(debianRoot, containerPath.trimStart('/')))
         }
 
         val name = filename.trim().substringAfterLast('/')
@@ -142,11 +161,12 @@ object WorkspaceFiles {
         if (name.isNotEmpty()) {
             candidates += reRoot("/root/$name")
             candidates += reRoot("/root/$HOME/$name")
-            candidates += File(TermuxPaths.HOME, name)
-            candidates += File(TermuxPaths.HOME, HOME + File.separator + name)
+            candidates += contained(File(TermuxPaths.HOME, name))
+            candidates += contained(File(TermuxPaths.HOME, HOME + File.separator + name))
         }
-        candidates.firstOrNull { it != null && it.isFile }?.let { return it }
-        return if (name.isEmpty()) null else findByName(name)
+        candidates.firstOrNull { it != null }?.let { return it }
+        val found = if (name.isEmpty()) null else findByName(name)
+        return found?.let { contained(it) }
     }
 
     /** Bounded sweep of the browsed roots for a file with this exact basename. */

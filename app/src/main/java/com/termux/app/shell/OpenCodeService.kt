@@ -59,8 +59,7 @@ class OpenCodeService : Service() {
             }
             val caption = when {
                 count > 0 -> "$count terminal session(s) running"
-                statusText != null -> statusText.orEmpty()
-                else -> "Getting ready…"
+                else -> statusText ?: "Getting ready…"
             }
             return builder
                 .setContentTitle("OpenCode")

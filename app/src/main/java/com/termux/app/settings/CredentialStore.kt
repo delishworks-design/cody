@@ -124,11 +124,18 @@ object CredentialStore {
         exportToContainer(context)
     }
 
+    private val RESERVED_ENV_VARS = setOf(
+        "PATH", "LD_PRELOAD", "LD_LIBRARY_PATH", "BASH_ENV", "ENV",
+        "HOME", "PREFIX", "TERM", "SHELL", "IFS", "PS1", "PS2",
+    )
+
     /** Adds a user-created entry, or returns null when the name or env var is unusable. */
     fun addCustom(context: Context, label: String, envVar: String, value: String): Credential? {
         val cleanLabel = label.trim()
         val cleanEnv = envVar.trim().uppercase().replace(Regex("[^A-Z0-9_]"), "_").trim('_')
         if (cleanLabel.isEmpty() || cleanEnv.isEmpty()) return null
+        if (cleanEnv in RESERVED_ENV_VARS) return null
+        if (all(context).any { it.envVar == cleanEnv }) return null
 
         val credential = Credential(
             id = CredentialCatalog.customId(cleanLabel),
@@ -180,7 +187,7 @@ object CredentialStore {
         val body = buildString {
             append("# Written by Cody, from the service keys you entered in Settings.\n")
             append("# Sourced into the shell. Do not commit this file.\n")
-            append("# Set: ${values.joinToString(", ") { it.first.label }}\n\n")
+            append("# Set: ${values.joinToString(", ") { it.first.label.replace(Regex("[\\r\\n]"), " ") }}\\n\\n")
             for ((credential, value) in values) {
                 append("export ").append(credential.envVar).append('=').append(shellQuote(value))
                 append('\n')
@@ -188,9 +195,14 @@ object CredentialStore {
         }
 
         return try {
-            file.writeText(body)
-            runCatching { Os.chmod(file.absolutePath, CONTAINER_MODE) }
+            val tmp = File(file.absolutePath + ".tmp")
+            tmp.writeText(body)
+            runCatching { Os.chmod(tmp.absolutePath, CONTAINER_MODE) }
                 .onFailure { Log.w(TAG, "Could not chmod the credential file", it) }
+            if (!tmp.renameTo(file)) {
+                file.writeText(body)
+                tmp.delete()
+            }
             Log.i(TAG, "Exported ${values.size} credential(s) to the container")
             true
         } catch (t: Throwable) {

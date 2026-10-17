@@ -28,32 +28,41 @@ object OpenCodeWeb {
     @Volatile
     private var process: Process? = null
 
+    @Volatile
+    private var starting = false
+
     @Synchronized
     fun ensureStarted(context: Context) {
         if (isReady()) return
-        process?.let { runCatching { it.destroy() } }
-        process = null
-
-        val script = ProvisionAssets.script(context, SCRIPT)
-        if (!script.isFile) {
-            Log.e(TAG, "Missing $script")
-            return
-        }
+        if (starting) return
+        starting = true
         try {
-            val pb = ProcessBuilder(listOf(TermuxPaths.BASH, script.absolutePath, PORT.toString()))
-            pb.directory(File(TermuxPaths.HOME))
-            pb.redirectErrorStream(true)
-            pb.redirectOutput(File(TermuxPaths.HOME, "opencode-web.log"))
-            val env = HashMap<String, String>()
-            for (entry in TermuxShellEnvironment.build(TermuxPaths.HOME)) {
-                val idx = entry.indexOf('=')
-                if (idx > 0) env[entry.substring(0, idx)] = entry.substring(idx + 1)
+            process?.let { runCatching { it.destroy() } }
+            process = null
+
+            val script = ProvisionAssets.script(context, SCRIPT)
+            if (!script.isFile) {
+                Log.e(TAG, "Missing $script")
+                return
             }
-            pb.environment().putAll(env)
-            process = pb.start()
-            Log.i(TAG, "Started opencode web on port $PORT")
-        } catch (t: Throwable) {
-            Log.e(TAG, "Failed to start opencode web", t)
+            try {
+                val pb = ProcessBuilder(listOf(TermuxPaths.BASH, script.absolutePath, PORT.toString()))
+                pb.directory(File(TermuxPaths.HOME))
+                pb.redirectErrorStream(true)
+                pb.redirectOutput(File(TermuxPaths.HOME, "opencode-web.log"))
+                val env = HashMap<String, String>()
+                for (entry in TermuxShellEnvironment.build(TermuxPaths.HOME)) {
+                    val idx = entry.indexOf('=')
+                    if (idx > 0) env[entry.substring(0, idx)] = entry.substring(idx + 1)
+                }
+                pb.environment().putAll(env)
+                process = pb.start()
+                Log.i(TAG, "Started opencode web on port $PORT")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Failed to start opencode web", t)
+            }
+        } finally {
+            starting = false
         }
     }
 

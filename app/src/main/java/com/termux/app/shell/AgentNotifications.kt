@@ -64,14 +64,18 @@ object AgentNotifications {
         )
     }
 
-    private fun actionIntent(context: Context, action: String, requestCode: Int): PendingIntent {
-        val intent = Intent(context, AgentActionReceiver::class.java).apply { this.action = action }
+    private fun actionIntent(context: Context, action: String, requestCode: Int, promptId: String? = null): PendingIntent {
+        val intent = Intent(context, AgentActionReceiver::class.java).apply {
+            this.action = action
+            if (promptId != null) putExtra(EXTRA_PROMPT_ID, promptId)
+        }
         return PendingIntent.getBroadcast(
             context, requestCode, intent,
-            // The prompt identity has to ride along, otherwise a queued reply answers the wrong ask.
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
     }
+
+    const val EXTRA_PROMPT_ID = "prompt_id"
 
     private fun builder(context: Context, id: Int): Notification.Builder {
         ensureChannel(context)
@@ -118,9 +122,9 @@ object AgentNotifications {
                     .setSmallIcon(android.R.drawable.stat_sys_warning)
                     .setContentIntent(openAppIntent(context, 2))
                     .setAutoCancel(true)
-                    .addAction(0, "Allow once", actionIntent(context, ACTION_ALLOW_ONCE, id))
-                    .addAction(0, "Always", actionIntent(context, ACTION_ALLOW_ALWAYS, id + 1))
-                    .addAction(0, "Reject", actionIntent(context, ACTION_REJECT, id + 2))
+                    .addAction(0, "Allow once", actionIntent(context, ACTION_ALLOW_ONCE, id, prompt.id))
+                    .addAction(0, "Always", actionIntent(context, ACTION_ALLOW_ALWAYS, id + 1, prompt.id))
+                    .addAction(0, "Reject", actionIntent(context, ACTION_REJECT, id + 2, prompt.id))
                     .build(),
             )
         }.onFailure { Log.w(TAG, "Could not post the permission notification", it) }
@@ -143,8 +147,8 @@ object AgentNotifications {
                     .setSmallIcon(android.R.drawable.stat_sys_warning)
                     .setContentIntent(openAppIntent(context, 3))
                     .setAutoCancel(true)
-                    .addAction(0, "Answer", actionIntent(context, ACTION_ANSWER, question.id.hashCode()))
-                    .addAction(0, "Skip", actionIntent(context, ACTION_REJECT, question.id.hashCode() + 1))
+                    .addAction(0, "Answer", actionIntent(context, ACTION_ANSWER, question.id.hashCode(), question.id))
+                    .addAction(0, "Skip", actionIntent(context, ACTION_REJECT, question.id.hashCode() + 1, question.id))
                     .build(),
             )
         }.onFailure { Log.w(TAG, "Could not post the question notification", it) }

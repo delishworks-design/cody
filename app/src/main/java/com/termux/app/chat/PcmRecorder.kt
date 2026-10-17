@@ -29,7 +29,7 @@ class PcmRecorder(val output: File) {
     private var recorder: AudioRecord? = null
     private var thread: Thread? = null
     @Volatile private var recording = false
-    private var bytesWritten = 0L
+    @Volatile private var bytesWritten = 0L
 
     val isRecording: Boolean get() = recording
 

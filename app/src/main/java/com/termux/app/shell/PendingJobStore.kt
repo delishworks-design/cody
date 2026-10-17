@@ -47,7 +47,13 @@ object PendingJobStore {
                 .put("modelKey", job.modelKey ?: JSONObject.NULL)
                 .put("agent", job.agent ?: JSONObject.NULL)
                 .put("startedAt", job.startedAt)
-            file(context).writeText(json.toString())
+            val target = file(context)
+            val tmp = File(target.absolutePath + ".tmp")
+            tmp.writeText(json.toString())
+            if (!tmp.renameTo(target)) {
+                target.writeText(json.toString())
+                tmp.delete()
+            }
             Log.i(TAG, "Persisted pending job (${job.text.take(40)})")
         }.onFailure { Log.w(TAG, "Could not persist pending job", it) }
     }
@@ -58,20 +64,23 @@ object PendingJobStore {
         if (!f.isFile) return null
         return runCatching {
             val json = JSONObject(f.readText())
+            val result = runCatching {
+                fun strings(key: String): List<String> {
+                    val array = json.optJSONArray(key) ?: return emptyList()
+                    return (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotEmpty) }
+                }
+                PendingJob(
+                    sessionId = json.optString("sessionId").takeIf { it.isNotEmpty() },
+                    text = json.optString("text"),
+                    imagePaths = strings("imagePaths"),
+                    fileRefs = strings("fileRefs"),
+                    modelKey = json.optString("modelKey").takeIf { it.isNotEmpty() },
+                    agent = json.optString("agent").takeIf { it.isNotEmpty() },
+                    startedAt = json.optLong("startedAt"),
+                )
+            }.getOrThrow()
             f.delete()
-            fun strings(key: String): List<String> {
-                val array = json.optJSONArray(key) ?: return emptyList()
-                return (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotEmpty) }
-            }
-            PendingJob(
-                sessionId = json.optString("sessionId").takeIf { it.isNotEmpty() },
-                text = json.optString("text"),
-                imagePaths = strings("imagePaths"),
-                fileRefs = strings("fileRefs"),
-                modelKey = json.optString("modelKey").takeIf { it.isNotEmpty() },
-                agent = json.optString("agent").takeIf { it.isNotEmpty() },
-                startedAt = json.optLong("startedAt"),
-            )
+            result
         }.getOrNull()
     }
 

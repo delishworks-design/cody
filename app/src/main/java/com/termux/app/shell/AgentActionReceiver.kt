@@ -41,18 +41,19 @@ class AgentActionReceiver : BroadcastReceiver() {
             AgentNotifications.ACTION_ALLOW_ONCE,
             AgentNotifications.ACTION_ALLOW_ALWAYS,
             AgentNotifications.ACTION_REJECT -> {
-                // `reject` is only meaningful for a permission here; a question is skipped by its
-                // own button, which routes to the same intent and is told apart by the runtime.
                 val response = when (intent.action) {
                     AgentNotifications.ACTION_ALLOW_ONCE -> "once"
                     AgentNotifications.ACTION_ALLOW_ALWAYS -> "always"
                     else -> "reject"
                 }
-                apply(context) { OpenCodeRuntime.replyPermissionFromNotification(response) }
+                val promptId = intent.getStringExtra(AgentNotifications.EXTRA_PROMPT_ID)
+                apply(context) { OpenCodeRuntime.replyPermissionFromNotification(response, promptId) }
             }
 
-            AgentNotifications.ACTION_ANSWER ->
-                apply(context) { OpenCodeRuntime.answerPendingQuestion() }
+            AgentNotifications.ACTION_ANSWER -> {
+                val promptId = intent.getStringExtra(AgentNotifications.EXTRA_PROMPT_ID)
+                apply(context) { OpenCodeRuntime.answerPendingQuestion(promptId) }
+            }
 
             else -> Unit
         }

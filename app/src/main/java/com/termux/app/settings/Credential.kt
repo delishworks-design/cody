@@ -153,6 +153,6 @@ object CredentialCatalog {
             .trim('-')
             .replace(Regex("-+"), "-")
             .take(24)
-        return "custom-${if (slug.isEmpty()) "key" else slug}-${System.currentTimeMillis()}"
+        return "custom-${if (slug.isEmpty()) "key" else slug}-${System.currentTimeMillis()}-${System.nanoTime()}"
     }
 }

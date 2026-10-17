@@ -88,7 +88,14 @@ object Attachments {
             Log.w(TAG, "Could not create $root")
             null
         } else {
-            val target = File(root, safeName(attachment.name))
+            var target = File(root, safeName(attachment.name))
+            if (target.exists()) {
+                val base = target.nameWithoutExtension
+                val ext = target.extension
+                var i = 1
+                while (File(root, "$base-$i.$ext").exists()) i++
+                target = File(root, "$base-$i.$ext")
+            }
             val payload = attachment.bytes()
             if (payload == null) {
                 Log.w(TAG, "Could not decode ${attachment.name} for writing")

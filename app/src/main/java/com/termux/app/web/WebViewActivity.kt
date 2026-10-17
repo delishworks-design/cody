@@ -119,7 +119,9 @@ class WebViewActivity : ComponentActivity() {
             isModel = true
             launchUrl = ViewerServer.start(this, File(modelPath))
         } else {
-            launchUrl = intent.getStringExtra(EXTRA_URL)?.trim()
+            val raw = intent.getStringExtra(EXTRA_URL)?.trim()
+            val scheme = runCatching { android.net.Uri.parse(raw).scheme?.lowercase() }.getOrNull()
+            launchUrl = if (raw.isNullOrBlank() || (scheme != null && scheme !in setOf("http", "https"))) null else raw
         }
 
         setContent {

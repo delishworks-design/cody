@@ -53,7 +53,7 @@ object Whisper {
                 ),
             )
             pb.directory(File(TermuxPaths.HOME))
-            pb.redirectErrorStream(false)
+            pb.redirectErrorStream(true)
             val env = HashMap<String, String>()
             for (entry in TermuxShellEnvironment.build(TermuxPaths.HOME)) {
                 val idx = entry.indexOf('=')
@@ -63,14 +63,13 @@ object Whisper {
 
             val process = pb.start()
             val stdout = process.inputStream.bufferedReader().use { it.readText() }
-            val stderr = process.errorStream.bufferedReader().use { it.readText() }
             if (!process.waitFor(TIMEOUT_SECONDS, TimeUnit.SECONDS)) {
                 process.destroyForcibly()
                 Log.w(TAG, "whisper-cli timed out")
                 return null
             }
             if (process.exitValue() != 0) {
-                Log.w(TAG, "whisper-cli failed: ${stderr.take(300)}")
+                Log.w(TAG, "whisper-cli failed: ${stdout.take(300)}")
                 return null
             }
             parse(stdout)

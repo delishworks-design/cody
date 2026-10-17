@@ -43,6 +43,7 @@ object ShellRunner {
             }
             process.waitFor()
         } catch (t: Throwable) {
+            if (t is kotlinx.coroutines.CancellationException) throw t
             Log.e(TAG, "Command failed", t)
             onLine("! ${t.message}")
             if (process.isAlive) process.destroy()

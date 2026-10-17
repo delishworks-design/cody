@@ -101,7 +101,8 @@ object OpenCodeApi {
         if (defaults == null || defaults.length() == 0) {
             ""
         } else {
-            defaults.keys().next()
+            val keys = defaults.keys()
+            if (keys.hasNext()) keys.next() else ""
         }
     } catch (t: Throwable) {
         ""

@@ -96,6 +96,7 @@ object Dictation {
                     ?.firstOrNull()
                     .orEmpty()
                 onFinal(text)
+                onEnd()
             }
 
             override fun onPartialResults(partialResults: android.os.Bundle?) {

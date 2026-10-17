@@ -65,6 +65,7 @@ object OpenCodeRuntime {
 
     private var appContext: Context? = null
     private var started = false
+    @Volatile
     private var eventsActive = false
     private var sendJob: Job? = null
 
@@ -76,6 +77,7 @@ object OpenCodeRuntime {
     // -------------------------------------------------------------------------------------------
 
     /** Boots the backend the first time a chat screen appears; a no-op afterwards. */
+    @Synchronized
     fun start(context: Context) {
         if (started) return
         started = true
@@ -170,20 +172,19 @@ object OpenCodeRuntime {
      */
     private fun awaitIdleThenReload() {
         scope.launch {
+            val startedSessionId = _state.value.sessionId
             var waited = 0
             while (waited < 15 * 60_000) {
                 if (!_state.value.busy) break
                 delay(1_000)
                 waited += 1_000
             }
-            // Still busy after 15 minutes: something is genuinely stuck, so surface that much later
-            // than a five-minute timeout would have.
             if (_state.value.busy) {
                 _state.update { it.copy(busy = false, error = "This took longer than 15 minutes.") }
                 return@launch
             }
             val sessionId = _state.value.sessionId
-            if (sessionId != null) {
+            if (sessionId != null && sessionId == startedSessionId) {
                 val history = withContext(Dispatchers.IO) {
                     runCatching { OpenCodeApi.messages(sessionId) }.getOrNull()
                 }
@@ -203,12 +204,18 @@ object OpenCodeRuntime {
      * The prompt is recovered from the transcript rather than remembered, because by the time the
      * event arrives the original send() call has long since returned and its local copy is gone.
      */
+    @Volatile
+    private var recoveringFromLimit = false
+
     private fun recoverFromLimit(reason: String) {
+        if (recoveringFromLimit) return
+        recoveringFromLimit = true
         val state = _state.value
         val failed = state.selectedModel
         val fallback = pickStrongerModel(state.fallbackPool, failed, emptySet()) ?: run {
             Log.w(TAG, "No stronger model available for: ${reason.take(120)}")
             _state.update { it.copy(error = "Hit a model limit and no stronger model is available.") }
+            recoveringFromLimit = false
             return
         }
 
@@ -219,6 +226,7 @@ object OpenCodeRuntime {
             .orEmpty()
         if (prompt.isBlank()) {
             _state.update { it.copy(error = "Hit a model limit and no stronger model is available.") }
+            recoveringFromLimit = false
             return
         }
 
@@ -240,7 +248,8 @@ object OpenCodeRuntime {
         // Remove the failed turn so the transcript shows one clean attempt, not two.
         messages.keys.filter { it.startsWith(LOCAL_PREFIX) }.forEach { messages.remove(it) }
 
-        _state.update { it.copy(input = prompt, attachments = emptyList()) }
+        _state.update { it.copy(input = prompt, attachments = emptyList(), busy = false) }
+        recoveringFromLimit = false
         send()
     }
 
@@ -398,8 +407,8 @@ object OpenCodeRuntime {
                     _state.update {
                         it.copy(error = message.take(200).ifEmpty { "Request failed" })
                     }
+                    setBusy(false)
                 }
-                setBusy(false)
             }
 
             type == "permission.asked" ->
@@ -471,6 +480,7 @@ object OpenCodeRuntime {
             ?: return returnOrphanDelta(partId, delta)
         val parts = entry.value.parts.toMutableList()
         val index = parts.indexOfFirst { it.id == partId }
+        if (index < 0) return returnOrphanDelta(partId, delta)
         parts[index] = parts[index].copy(text = parts[index].text + delta)
         messages[entry.key] = entry.value.copy(parts = parts)
         publish()
@@ -653,16 +663,18 @@ object OpenCodeRuntime {
     }
 
     /** Applies a permission decision that arrived from a notification rather than the app. */
-    fun replyPermissionFromNotification(response: String) = replyPermission(response)
+    fun replyPermissionFromNotification(response: String, promptId: String? = null) = replyPermission(response, promptId)
 
     /**
      * A question cannot be answered from a notification button — there is no way to know which
      * option was meant — so it is skipped rather than guessed. Guessing would be far worse than
      * skipping: it would silently pick work the user never read.
      */
-    fun answerPendingQuestion() {
+    fun answerPendingQuestion(promptId: String? = null) {
+        val pending = _state.value.question
+        if (promptId != null && pending != null && pending.id != promptId) return
         Log.i(TAG, "Question deferred to the app; skipping rather than guessing an answer")
-        rejectQuestion()
+        rejectQuestion(promptId)
     }
 
     fun dismissError() = _state.update { it.copy(error = null) }
@@ -732,9 +744,10 @@ object OpenCodeRuntime {
         }
 
         sendJob = scope.launch {
+            val initialSessionId = _state.value.sessionId
             val result = withContext(Dispatchers.IO) {
                 runCatching {
-                    val sessionId = _state.value.sessionId
+                    val sessionId = initialSessionId
                         ?: OpenCodeApi.createSession("chat").also { id ->
                             _state.update { s -> s.copy(sessionId = id) }
                         }
@@ -849,6 +862,8 @@ object OpenCodeRuntime {
      */
     fun stop() {
         val sessionId = _state.value.sessionId ?: return
+        sendJob?.cancel()
+        sendJob = null
         _state.update { it.copy(busy = false) }
         scope.launch(Dispatchers.IO) { runCatching { OpenCodeApi.abort(sessionId) } }
         publish()
@@ -924,7 +939,9 @@ object OpenCodeRuntime {
         if (wasBusy && sessionId != null) {
             scope.launch(Dispatchers.IO) { runCatching { OpenCodeApi.abort(sessionId) } }
         }
-        // The abort is fire-and-forget; clearing local state must not wait on it.
+        // Cancel the in-flight send so it cannot keep generating into the old session or
+        // overwrite the freshly cleared state.
+        sendJob?.cancel()
         sendJob = null
         _state.update {
             it.copy(
@@ -1097,8 +1114,9 @@ object OpenCodeRuntime {
         }
     }
 
-    fun replyPermission(response: String) {
+    fun replyPermission(response: String, promptId: String? = null) {
         val prompt = _state.value.permission ?: return
+        if (promptId != null && prompt.id != promptId) return
         _state.update { it.copy(permission = null) }
         scope.launch(Dispatchers.IO) {
             runCatching { OpenCodeApi.replyPermission(prompt, response) }
@@ -1117,8 +1135,9 @@ object OpenCodeRuntime {
         }
     }
 
-    fun rejectQuestion() {
+    fun rejectQuestion(promptId: String? = null) {
         val prompt = _state.value.question ?: return
+        if (promptId != null && prompt.id != promptId) return
         _state.update { it.copy(question = null) }
         scope.launch(Dispatchers.IO) { runCatching { OpenCodeApi.rejectQuestion(prompt.id) } }
     }

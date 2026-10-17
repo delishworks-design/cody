@@ -30,7 +30,7 @@ object WebPreviewServer {
     private const val TAG = "WebPreviewServer"
     private const val MAX_BYTES = 24L * 1024 * 1024
 
-    private val workers = Executors.newCachedThreadPool { runnable ->
+    private val workers = Executors.newFixedThreadPool(8) { runnable ->
         Thread(runnable, "web-preview").apply { isDaemon = true }
     }
 

@@ -50,6 +50,12 @@ class TermuxInstaller(private val context: Context) {
                 var entry = zip.nextEntry
                 while (entry != null) {
                     val name = entry.name
+                    // Guard against zip-slip: reject absolute or traversal paths.
+                    if (name.startsWith("/") || name.split("/").any { it == ".." }) {
+                        zip.closeEntry()
+                        entry = zip.nextEntry
+                        continue
+                    }
                     if (name == "SYMLINKS.txt") {
                         // Read the entry contents directly. Do NOT wrap the ZipInputStream in a
                         // reader that closes it, or the rest of the archive cannot be read.
@@ -57,12 +63,17 @@ class TermuxInstaller(private val context: Context) {
                         val tmp = ByteArray(4096)
                         var n: Int
                         while (zip.read(tmp).also { n = it } != -1) baos.write(tmp, 0, n)
-                        baos.toString("UTF-8").split("\n").forEach { line ->
+                        baos.toString("UTF-8").split("\\n").forEach { line ->
                             val parts = line.split(SYMLINK_SEPARATOR)
                             if (parts.size == 2) {
-                                val linkPath = TermuxPaths.STAGING_PREFIX + "/" + parts[1].trim()
+                                val targetRel = parts[0].trim()
+                                val linkRel = parts[1].trim()
+                                if (targetRel.isEmpty() || linkRel.isEmpty()) return@forEach
+                                if (targetRel.startsWith("/") || linkRel.startsWith("/")) return@forEach
+                                if (targetRel.split("/").any { it == ".." } || linkRel.split("/").any { it == ".." }) return@forEach
+                                val linkPath = TermuxPaths.STAGING_PREFIX + "/" + linkRel
                                 File(linkPath).parentFile?.mkdirs()
-                                symlinks.add(parts[0].trim() to linkPath)
+                                symlinks.add(targetRel to linkPath)
                             }
                         }
                     } else {
