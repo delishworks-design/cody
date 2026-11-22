@@ -90,6 +90,7 @@ fun ChatDrawer(
     onOpenFiles: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenSetup: () -> Unit,
+    onOpenFeatures: () -> Unit,
     onOpenTerminal: () -> Unit,
     drawerState: androidx.compose.material3.DrawerState,
     content: @Composable () -> Unit,
@@ -250,6 +251,7 @@ fun ChatDrawer(
                     DrawerRow(Icons.Filled.Folder, "Files", onOpenFiles)
                     DrawerRow(Icons.Outlined.Terminal, "Terminal", onOpenTerminal)
                     DrawerRow(Icons.Outlined.Settings, "Settings", onOpenSettings)
+                    DrawerRow(Icons.Filled.MoreVert, "More features", onOpenFeatures)
                     DrawerRow(Icons.Outlined.Handyman, "Setup", onOpenSetup)
                     Spacer(modifier = Modifier.height(24.dp))
                 }

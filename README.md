@@ -137,8 +137,8 @@ the entire Linux toolchain, on device, with no server and no account.
   **Auto · free** entry at the top that picks the strongest available free model for you. Selection
   is per session and restored when you reopen it.
 - **Drawer**: recent conversations with relative timestamps, swipe-to-delete, long-press rename
-  (the rename is written through to both the local store and `PATCH /session/:id`, so it survives a
-  restart and shows on the server). Also holds Files, Terminal, *Settings* and Setup.
+   (the rename is written through to both the local store and `PATCH /session/:id`, so it survives a
+   restart and shows on the server). Also holds Files, Terminal, *Settings*, *More features* and Setup.
 - **Settings**: one place for credentials, split in two because neither half can do the other's job.
   *AI providers* opens opencode's own dashboard for model keys; *Service keys* is for the accounts
   the **agent** uses while working — GitHub, Vercel, Supabase, Anthropic, OpenAI, Google AI Studio,
@@ -173,6 +173,25 @@ the entire Linux toolchain, on device, with no server and no account.
 - Works behind corporate TLS inspection: setup mirrors the device trust store (system **and** user
   CAs) into the Termux and Debian CA bundles before anything downloads, and can accept a root CA
   that only exists on your machine — see [Corporate networks](#corporate-networks--tls-inspection).
+- **More features** (*Drawer → More features*), ported from the MIT-licensed
+  [cl0udly](https://github.com/mistqkw/cl0udly-mobile) client:
+  - **Your computer**: pair with an `opencode serve` running on a computer on your LAN. Run the
+    printed command there, scan its `cody://connect` QR with any camera app (or paste the link), and
+    the app switches all REST and SSE traffic to that server with HTTP Basic auth. Switch back to
+    *This phone* at any time. Remote mode starts after the local environment has been set up.
+  - **Memory**: markdown shelves in the container's `/root/memory`, indexed by `MEMORY.md`. When
+    enabled, a short instruction is appended to each prompt so the agent reads and updates them.
+  - **Team of agents**: define up to six named helpers with a role and optional model; they are
+    written to opencode's config as `subagent`s and the main agent is told it may delegate with the
+    `task` tool.
+  - **GitHub sign-in**: the device-code flow used by `gh auth login --web`, storing the token in the
+    existing service-key store so no token is pasted into the app by hand.
+  - **Skills import**: install a `SKILL.md` or a zip containing one straight into the container's
+    opencode skills directory.
+  - **Usage**: costs reported on replies, summed over 5 hours, 7 days and 30 days, plus a rough
+    cost hint for the next prompt.
+  - **Updates and backup**: check GitHub releases and install an APK through the system installer;
+    export or restore one archive containing the container home, the workspace and app settings.
 - **Terminal**: *Drawer → Terminal* opens a real terminal on the same proot session the chat runs on,
   with an extra-keys bar (Ctrl, Alt, Shift, Esc, Tab, arrows, Home/End, Ctrl+C/D/Z), font sizing and
   a Ctrl-C shortcut. It starts the **opencode TUI**, so it is the same agent in a raw interface.

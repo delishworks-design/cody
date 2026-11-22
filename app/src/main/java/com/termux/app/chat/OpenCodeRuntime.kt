@@ -8,6 +8,10 @@ import com.termux.app.shell.OpenCodeService
 import com.termux.app.shell.AgentNotifications
 import com.termux.app.settings.CredentialStore
 import com.termux.app.shell.PendingJobStore
+import com.termux.app.features.FeatureInstructions
+import com.termux.app.features.RemoteDevices
+import com.termux.app.features.TeamAgents
+import com.termux.app.features.UsageTracker
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -68,6 +72,8 @@ object OpenCodeRuntime {
     @Volatile
     private var eventsActive = false
     private var sendJob: Job? = null
+    private var streamJob: Job? = null
+    private var eventsCollector: Job? = null
 
     /** Debounce for the changed-file list, which updates on every `file.edited` event. */
     private const val FILE_REFRESH_MS = 700L
@@ -95,15 +101,32 @@ object OpenCodeRuntime {
 
         scope.launch {
             _state.update { it.copy(server = ServerState.Starting, error = null) }
+            // A paired computer replaces the phone's own server as the target for every request and
+            // for the event stream. Provisioning is still required for the local backend, so remote
+            // mode is a switch after the first successful setup rather than a way around it.
+            val remote = RemoteDevices.active(app)
+            if (remote == null) OpenCodeApi.useLocal() else {
+                OpenCodeApi.useRemote(remote.url, remote.password)
+                OpenCodeService.publishStatus(app, "Connecting to ${remote.name}…")
+            }
             val healthy = withContext(Dispatchers.IO) {
-                OpenCodeServer.ensureStarted(app)
-                var attempt = 0
-                while (attempt < 60) {
-                    if (OpenCodeApi.health()) return@withContext true
-                    delay(1_000)
-                    attempt++
+                if (remote == null) {
+                    OpenCodeServer.ensureStarted(app)
+                    var attempt = 0
+                    while (attempt < 60) {
+                        if (OpenCodeApi.health()) return@withContext true
+                        delay(1_000)
+                        attempt++
+                    }
+                    OpenCodeApi.health()
+                } else {
+                    var attempt = 0
+                    while (attempt < 10 && !OpenCodeApi.health()) {
+                        delay(500)
+                        attempt++
+                    }
+                    OpenCodeApi.health()
                 }
-                OpenCodeApi.health()
             }
             if (!healthy) {
                 _state.update { it.copy(server = ServerState.Failed) }
@@ -113,6 +136,8 @@ object OpenCodeRuntime {
             }
             _state.update { it.copy(server = ServerState.Ready) }
             OpenCodeService.publishStatus(app, "OpenCode is ready.")
+            UsageTracker.load(app)
+            if (TeamAgents.enabled(app)) withContext(Dispatchers.IO) { TeamAgents.sync(app) }
             startEventStream()
             loadMeta()
             loadSkills()
@@ -120,6 +145,13 @@ object OpenCodeRuntime {
             refreshSessions(pickRecent = true)
             refreshPending()
         }
+    }
+
+    /** Points the app at the currently selected device without requiring an app restart. */
+    fun switchServer(context: Context) {
+        shutdown()
+        started = false
+        start(context.applicationContext)
     }
 
     /** Loads agents and the model catalogue once the server is up. */
@@ -347,18 +379,22 @@ object OpenCodeRuntime {
     private fun startEventStream() {
         if (eventsActive) return
         eventsActive = true
-        scope.launch {
+        streamJob = scope.launch {
             withContext(Dispatchers.IO) {
                 OpenCodeApi.streamEvents(alive = { eventsActive }) { event -> events.tryEmit(event) }
             }
         }
-        scope.launch { events.collect { handleEvent(it) } }
+        eventsCollector = scope.launch { events.collect { handleEvent(it) } }
     }
 
     /** Drops the SSE subscription; the server itself keeps running. */
     fun shutdown() {
         eventsActive = false
         OpenCodeApi.stopEvents()
+        streamJob?.cancel()
+        eventsCollector?.cancel()
+        streamJob = null
+        eventsCollector = null
     }
 
     // -------------------------------------------------------------------------------------------
@@ -369,7 +405,10 @@ object OpenCodeRuntime {
         val type = event.optString("type")
         val props = event.optJSONObject("properties") ?: event.optJSONObject("data") ?: return
         when {
-            type == "message.updated" -> onMessageUpdated(props)
+            type == "message.updated" -> {
+                UsageTracker.record(props)
+                onMessageUpdated(props)
+            }
             type == "message.part.updated" -> onPartUpdated(props)
             type == "message.part.delta" -> onPartDelta(props)
 
@@ -390,7 +429,10 @@ object OpenCodeRuntime {
                 setBusy(status == "busy")
             }
 
-            type == "session.idle" -> setBusy(false)
+            type == "session.idle" -> {
+                setBusy(false)
+                appContext?.let { UsageTracker.save(it) }
+            }
 
             // opencode can report a failure mid-stream and still return 200 from the POST, so the
             // error event is the only place some limit failures are visible.
@@ -691,7 +733,14 @@ object OpenCodeRuntime {
         val selected = current.selectedModel
         // Captured here, not at the point of use: the note describes what was on disk when the
         // user pressed send, which is the only moment it can be honestly described.
-        val credentialNote = appContext?.let { CredentialStore.agentNote(it) }
+        val credentialNote = buildString {
+            appContext?.let { append(CredentialStore.agentNote(it).orEmpty()) }
+            val extra = appContext?.let { FeatureInstructions.note(it) }.orEmpty()
+            if (extra.isNotBlank()) {
+                if (isNotEmpty()) append("\n\n")
+                append(extra)
+            }
+        }.ifBlank { null }
         if (attachments.any { it.isImage } && selected?.attachment == false) {
             _state.update {
                 it.copy(notice = "${selected.modelName} is text-only — the picture may be ignored or rejected.")

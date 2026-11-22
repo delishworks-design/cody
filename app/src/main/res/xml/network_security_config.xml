@@ -13,18 +13,16 @@
   Note: the app itself opens no sockets to remote hosts, so trusting user CAs here has no effect
   beyond letting setup copy them across.
 
-  The chat UI is the one exception: it speaks plain HTTP to the headless `opencode serve` process
-  that runs inside the Debian container. proot does not isolate the network namespace, so that
-  server is reachable on loopback only - which is why cleartext is permitted for localhost and
-  denied everywhere else.
+   The chat UI speaks plain HTTP to the headless `opencode serve` process that runs inside the
+   Debian container. proot does not isolate the network namespace, so that server is reachable on
+   loopback. A paired computer is also reached over plain HTTP, on a private LAN address chosen by
+   the user and protected by the password from its QR link. Android's network security config
+   cannot express "cleartext on the local network only" — domain rules cannot cover arbitrary
+   private IPs — so cleartext is allowed here. No other host is contacted by this app's own network
+   code; provisioning downloads are made by curl/apt inside the container and verify TLS there.
 -->
 <network-security-config>
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">localhost</domain>
-        <domain includeSubdomains="false">127.0.0.1</domain>
-        <domain includeSubdomains="false">::1</domain>
-    </domain-config>
-    <base-config cleartextTrafficPermitted="false">
+    <base-config cleartextTrafficPermitted="true">
         <trust-anchors>
             <certificates src="system" />
             <certificates src="user" />

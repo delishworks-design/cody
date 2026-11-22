@@ -134,3 +134,18 @@ device downloads.
 
 Installed on-device during setup. Not bundled. Each is licensed by its own
 upstream project.
+
+
+--------------------------------------------------------------------------------
+7. cl0udly / OpenCode Mobile  (features/ and FeatureHubScreen.kt)
+--------------------------------------------------------------------------------
+
+    Copyright (c) 2026 mistqkw
+    https://github.com/mistqkw/cl0udly-mobile
+    Licence: MIT — full text in LICENSES/MIT.txt
+
+The remote-device pairing, usage tracking, GitHub device sign-in, memory,
+team-agent, skills-import, update and backup features were ported from that
+project and adapted to Cody's Termux/Debian runtime and Compose theme. The MIT
+notice below is retained as required; MIT is compatible with this program's
+GPLv3.

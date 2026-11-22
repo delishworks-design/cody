@@ -200,6 +200,7 @@ fun ChatScreen(
     onOpenSetup: () -> Unit,
     onOpenSettings: () -> Unit,
     onOpenTerminal: () -> Unit,
+    onOpenFeatures: () -> Unit,
     viewModel: ChatViewModel = viewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -351,6 +352,10 @@ fun ChatScreen(
         onOpenFiles = { showFiles = true },
         onOpenSettings = onOpenSettings,
         onOpenSetup = onOpenSetup,
+        onOpenFeatures = {
+            scope.launch { drawerState.close() }
+            onOpenFeatures()
+        },
         onOpenTerminal = {
             // Close the drawer first. The terminal is a separate activity, so on return the user
             // would otherwise land on a still-open drawer covering the transcript.

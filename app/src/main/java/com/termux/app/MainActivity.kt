@@ -10,10 +10,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import android.widget.Toast
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
@@ -21,17 +26,23 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import com.termux.app.chat.OpenCodeApi
+import com.termux.app.chat.OpenCodeRuntime
 import com.termux.app.chat.OpenCodeWeb
+import com.termux.app.features.RemoteDevices
 import com.termux.app.install.EnvironmentProvisioner
 import com.termux.app.install.TermuxPaths
 import com.termux.app.terminal.TerminalActivity
 import com.termux.app.ui.AppViewModel
 import com.termux.app.ui.screens.ChatScreen
+import com.termux.app.ui.screens.FeatureHubScreen
 import com.termux.app.ui.screens.SettingsScreen
 import com.termux.app.ui.screens.SetupScreen
 import com.termux.app.ui.theme.CodyTheme
 import com.termux.app.web.WebViewActivity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
 
@@ -71,6 +82,8 @@ class MainActivity : ComponentActivity() {
             CodyTheme {
                 val navController = rememberNavController()
                 val viewModel: AppViewModel = viewModel()
+                val scope = rememberCoroutineScope()
+                var pendingDevice by remember { mutableStateOf<RemoteDevices.Device?>(null) }
 
                 // The chat IS the app. There is no home screen and no onboarding: a fresh install
                 // opens straight into the transcript, where the initialising state stands in until
@@ -78,6 +91,43 @@ class MainActivity : ComponentActivity() {
                 // provisioning actually fails.
                 LaunchedEffect(Unit) {
                     if (openChatOnStart) openChatOnStart = false
+                    // A scanned QR opens this activity as a cody://connect deep link. Keep it as an
+                    // explicit offer: accepting an address from a camera app is the user's decision,
+                    // not something to do silently in the background.
+                    intent?.data?.let { uri -> RemoteDevices.parseLink(uri)?.let { pendingDevice = it } }
+                }
+
+                pendingDevice?.let { offer ->
+                    AlertDialog(
+                        onDismissRequest = { pendingDevice = null },
+                        title = { Text("Connect to ${offer.name}?") },
+                        text = {
+                            Text(
+                                "This will send chat requests and prompts to ${offer.url}. " +
+                                    "Only accept a QR from a computer you trust on this network.",
+                            )
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                pendingDevice = null
+                                scope.launch {
+                                    val reachable = withContext(Dispatchers.IO) {
+                                        OpenCodeApi.probe(offer.url, offer.password)
+                                    }
+                                    if (!reachable) {
+                                        Toast.makeText(
+                                            this@MainActivity, "Could not reach ${offer.url}", Toast.LENGTH_LONG,
+                                        ).show()
+                                    } else {
+                                        RemoteDevices.add(this@MainActivity, offer)
+                                        RemoteDevices.select(this@MainActivity, offer.id)
+                                        OpenCodeRuntime.switchServer(this@MainActivity)
+                                    }
+                                }
+                            }) { Text("Connect") }
+                        },
+                        dismissButton = { TextButton(onClick = { pendingDevice = null }) { Text("Cancel") } },
+                    )
                 }
 
                 NavHost(navController = navController, startDestination = "chat") {
@@ -86,6 +136,7 @@ class MainActivity : ComponentActivity() {
                             onOpenSetup = { navController.navigate("setup") },
                             onOpenSettings = { navController.navigate("settings") },
                             onOpenTerminal = { openTerminal() },
+                            onOpenFeatures = { navController.navigate("features") },
                         )
                     }
                     composable("setup") {
@@ -96,6 +147,9 @@ class MainActivity : ComponentActivity() {
                             onBack = { navController.popBackStack() },
                             onOpenProviderDashboard = { openProviderSetup() },
                         )
+                    }
+                    composable("features") {
+                        FeatureHubScreen(onBack = { navController.popBackStack() })
                     }
                 }
             }

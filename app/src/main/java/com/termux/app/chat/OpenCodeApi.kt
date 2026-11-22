@@ -1,5 +1,6 @@
 package com.termux.app.chat
 
+import android.util.Base64
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -26,6 +27,33 @@ object OpenCodeApi {
     const val PORT = 4096
     const val BASE = "http://127.0.0.1:$PORT"
 
+    /**
+     * Optional remote server. Null means the headless server inside this phone's container, which
+     * needs no authentication because proot keeps it on loopback. A paired computer is reached on
+     * the LAN and is protected by the password in its QR link, sent as HTTP Basic auth.
+     *
+     * Both fields are read on each request, so switching devices takes effect on the next call and
+     * the already-running SSE loop rebinds itself when it reconnects.
+     */
+    @Volatile
+    private var remoteBase: String? = null
+    @Volatile
+    private var remotePassword: String? = null
+
+    fun useLocal() {
+        remoteBase = null
+        remotePassword = null
+    }
+
+    fun useRemote(base: String, password: String) {
+        remoteBase = base.trimEnd('/')
+        remotePassword = password
+    }
+
+    fun isRemote(): Boolean = remoteBase != null
+
+    fun currentBase(): String = remoteBase ?: BASE
+
     /** Set while an SSE reader is running so it can be stopped from another thread. */
     @Volatile
     private var eventsOpen = false
@@ -36,17 +64,52 @@ object OpenCodeApi {
     // Request plumbing
     // ---------------------------------------------------------------------------------------------
 
+    private fun authorize(conn: HttpURLConnection, password: String?) {
+        if (password.isNullOrEmpty()) return
+        val credentials = "opencode:$password".toByteArray(Charsets.UTF_8)
+        conn.setRequestProperty(
+            "Authorization",
+            "Basic " + Base64.encodeToString(credentials, Base64.NO_WRAP),
+        )
+    }
+
     private fun connection(method: String, path: String, body: String?, timeoutMs: Int): HttpURLConnection {
-        val conn = URL(BASE + path).openConnection() as HttpURLConnection
+        val conn = URL(currentBase() + path).openConnection() as HttpURLConnection
         conn.requestMethod = method
         conn.connectTimeout = timeoutMs
         conn.readTimeout = timeoutMs
         conn.setRequestProperty("Accept", "application/json")
+        authorize(conn, remotePassword)
         if (body != null) {
             conn.doOutput = true
             conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
         }
         return conn
+    }
+
+    /**
+     * Verifies a candidate remote server before it is stored. Uses its own connection rather than
+     * [connection] on purpose: the caller has not committed the device yet, so no state is changed
+     * on a failed probe. Call from `Dispatchers.IO`.
+     */
+    fun probe(base: String, password: String, timeoutMs: Int = 8_000): Boolean {
+        val normalized = base.trimEnd('/')
+        var conn: HttpURLConnection? = null
+        return try {
+            conn = URL(normalized + "/global/health").openConnection() as HttpURLConnection
+            conn.requestMethod = "GET"
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
+            conn.setRequestProperty("Accept", "application/json")
+            authorize(conn, password)
+            if (conn.responseCode !in 200..299) return false
+            val text = conn.inputStream.bufferedReader(Charsets.UTF_8).use(BufferedReader::readText)
+            runCatching { JSONObject(text).optBoolean("healthy", true) }.getOrDefault(true)
+        } catch (t: Throwable) {
+            false
+        } finally {
+            conn?.disconnect()
+        }
     }
 
     private fun request(
@@ -117,6 +180,14 @@ object OpenCodeApi {
     fun deleteSession(sessionId: String) {
         runCatching { request("DELETE", "/session/$sessionId", null, 15_000) }
     }
+
+    /** Partial config update, used by optional features such as team subagents. */
+    fun patch(path: String, body: String, timeoutMs: Int = 15_000): String =
+        request("PATCH", path, body, timeoutMs)
+
+    /** Per-file diff of a session, used by the Changes panel. May be unsupported by older servers. */
+    fun diff(sessionId: String, timeoutMs: Int = 15_000): JSONArray? =
+        runCatching { JSONArray(get("/session/$sessionId/diff", timeoutMs)) }.getOrNull()
 
     /**
      * Renames a session on the server.
