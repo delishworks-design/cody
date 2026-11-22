@@ -3,8 +3,10 @@ package com.termux.app.features
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.SharedPreferences
 import android.content.pm.PackageInstaller
 import android.os.Build
+import com.termux.app.BuildConfig
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -18,13 +20,94 @@ object AppUpdater {
 
     data class Release(val tag: String, val apkUrl: String, val notes: String)
 
+    const val ACTION_INSTALL_STATUS = "com.termux.app.APK_INSTALL_STATUS"
+
     private const val USER_AGENT = "cody-app-updater/1.0"
     private const val CHUNK = 64 * 1024
+    private const val PREFS = "cody_features"
+    private const val KEY_URL = "update_url"
+    private const val KEY_REPO = "update_repo"
+    private const val KEY_AUTO = "update_auto"
+    private const val KEY_CHECKED = "update_last_check"
+    private const val CHECK_INTERVAL_MS = 24L * 60 * 60 * 1000
 
-    fun check(): Release? {
+    private fun prefs(context: Context): SharedPreferences =
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    /** A direct APK URL, when the app is distributed outside GitHub Releases. Empty = use releases. */
+    fun customUrl(context: Context): String = prefs(context).getString(KEY_URL, "").orEmpty()
+
+    fun setCustomUrl(context: Context, url: String) {
+        prefs(context).edit().putString(KEY_URL, url.trim()).apply()
+    }
+
+    /** Repository whose latest release supplies the APK. */
+    fun repo(context: Context): String = prefs(context).getString(KEY_REPO, REPO).takeUnless { it.isNullOrBlank() } ?: REPO
+
+    fun setRepo(context: Context, repo: String) {
+        prefs(context).edit().putString(KEY_REPO, repo.trim()).apply()
+    }
+
+    fun autoCheckEnabled(context: Context): Boolean = prefs(context).getBoolean(KEY_AUTO, true)
+
+    fun setAutoCheck(context: Context, enabled: Boolean) {
+        prefs(context).edit().putBoolean(KEY_AUTO, enabled).apply()
+    }
+
+    fun shouldAutoCheck(context: Context): Boolean =
+        autoCheckEnabled(context) &&
+            System.currentTimeMillis() - prefs(context).getLong(KEY_CHECKED, 0L) > CHECK_INTERVAL_MS
+
+    fun markChecked(context: Context) {
+        prefs(context).edit().putLong(KEY_CHECKED, System.currentTimeMillis()).apply()
+    }
+
+    /** Looks for an update at the configured URL first, then in the configured GitHub releases. */
+    fun check(context: Context): Release? {
+        val direct = customUrl(context)
+        if (direct.isNotEmpty()) {
+            return try {
+                val conn = URL(direct).openConnection() as HttpURLConnection
+                conn.requestMethod = "GET"
+                conn.connectTimeout = 15_000
+                conn.readTimeout = 15_000
+                conn.setRequestProperty("User-Agent", USER_AGENT)
+                try {
+                    val ok = conn.responseCode in 200..299
+                    if (ok) Release("Custom build", direct, "From the APK URL you configured.") else null
+                } finally {
+                    conn.disconnect()
+                }
+            } catch (t: Throwable) {
+                null
+            }
+        }
+        return checkReleases(repo(context))
+    }
+
+    /**
+     * True when the candidate should be offered to the user. Unparseable tags are treated as newer
+     * on purpose: silently hiding an update because its tag is "v2.1-beta" is worse than an extra
+     * dialog the user can dismiss.
+     */
+    fun isNewer(release: Release, context: Context): Boolean {
+        val tag = release.tag.trim().trimStart('v')
+        if (tag.isEmpty() || tag.equals("custom", true) || tag.equals("latest", true)) return true
+        val theirs = tag.split('.').mapNotNull { it.toIntOrNull() }
+        val ours = BuildConfig.VERSION_NAME.trim().trimStart('v').split('.').mapNotNull { it.toIntOrNull() }
+        if (theirs.isEmpty() || ours.isEmpty()) return true
+        for (i in 0 until maxOf(theirs.size, ours.size)) {
+            val a = theirs.getOrNull(i) ?: 0
+            val b = ours.getOrNull(i) ?: 0
+            if (a != b) return a > b
+        }
+        return false
+    }
+
+    private fun checkReleases(repository: String): Release? {
         var connection: HttpURLConnection? = null
         return try {
-            connection = URL("https://api.github.com/repos/$REPO/releases/latest").openConnection() as HttpURLConnection
+            connection = URL("https://api.github.com/repos/$repository/releases/latest").openConnection() as HttpURLConnection
             connection.requestMethod = "GET"
             connection.setRequestProperty("Accept", "application/vnd.github+json")
             connection.setRequestProperty("User-Agent", USER_AGENT)
@@ -135,7 +218,7 @@ object AppUpdater {
                     }
                     session.fsync(out)
                 }
-                val intent = Intent("com.termux.app.APK_INSTALL_STATUS").setPackage(context.packageName)
+                val intent = Intent(ACTION_INSTALL_STATUS).setPackage(context.packageName)
                 val flags = PendingIntent.FLAG_UPDATE_CURRENT or
                     (if (Build.VERSION.SDK_INT >= 31) PendingIntent.FLAG_MUTABLE else 0)
                 val status = PendingIntent.getBroadcast(context, sessionId, intent, flags)

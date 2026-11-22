@@ -67,6 +67,15 @@
             android:name=".shell.OpenCodeService"
             android:exported="false" />
 
+        <!-- Result of an in-app APK install; the PendingIntent is explicit and from this app. -->
+        <receiver
+            android:name=".features.ApkInstallReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.termux.app.APK_INSTALL_STATUS" />
+            </intent-filter>
+        </receiver>
+
         <!--
             Notification actions (approve / reject) and reboot recovery.
 

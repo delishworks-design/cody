@@ -671,15 +671,48 @@ private fun UpdateSection(context: Context, scope: kotlinx.coroutines.CoroutineS
     val progressHandler = remember { Handler(Looper.getMainLooper()) }
     var release by remember { mutableStateOf<AppUpdater.Release?>(null) }
     var progress by remember { mutableStateOf(-1) }
+    var auto by remember { mutableStateOf(AppUpdater.autoCheckEnabled(context)) }
+    var url by remember { mutableStateOf(AppUpdater.customUrl(context)) }
+    var repo by remember { mutableStateOf(AppUpdater.repo(context)) }
     Section("Updates") {
-        Text("Check GitHub releases for a newer Cody APK.", color = TextMuted, fontSize = 12.sp)
+        RowSwitch("Check once a day on launch", auto) {
+            auto = it
+            AppUpdater.setAutoCheck(context, it)
+        }
+        Text(
+            "Set a direct APK URL if updates are not published as GitHub releases. Leave it empty to use the repository below.",
+            color = TextMuted, fontSize = 11.sp,
+        )
         Spacer(Modifier.height(8.dp))
+        OutlinedTextField(
+            url, { url = it },
+            label = { Text("APK URL (optional)") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        OutlinedTextField(
+            repo, { repo = it },
+            label = { Text("GitHub repository") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedButton(onClick = {
+                AppUpdater.setCustomUrl(context, url)
+                AppUpdater.setRepo(context, repo)
+                say("Update sources saved")
+            }) { Text("Save") }
+            OutlinedButton(onClick = {
                 scope.launch {
-                    val found = withContext(Dispatchers.IO) { AppUpdater.check() }
+                    val found = withContext(Dispatchers.IO) { AppUpdater.check(context) }
                     release = found
-                    say(found?.let { "Release ${it.tag} is available" } ?: "No release found or GitHub unreachable")
+                    say(
+                        when {
+                            found == null -> "No update found or source unreachable"
+                            !AppUpdater.isNewer(found, context) -> "Already on the latest version"
+                            else -> "Release ${found.tag} is available"
+                        },
+                    )
                 }
             }) { Text("Check") }
             release?.let { found ->

@@ -11,6 +11,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import android.widget.Toast
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -20,6 +25,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -29,6 +37,7 @@ import androidx.navigation.compose.rememberNavController
 import com.termux.app.chat.OpenCodeApi
 import com.termux.app.chat.OpenCodeRuntime
 import com.termux.app.chat.OpenCodeWeb
+import com.termux.app.features.AppUpdater
 import com.termux.app.features.RemoteDevices
 import com.termux.app.install.EnvironmentProvisioner
 import com.termux.app.install.TermuxPaths
@@ -38,7 +47,9 @@ import com.termux.app.ui.screens.ChatScreen
 import com.termux.app.ui.screens.FeatureHubScreen
 import com.termux.app.ui.screens.SettingsScreen
 import com.termux.app.ui.screens.SetupScreen
+import com.termux.app.ui.theme.Accent
 import com.termux.app.ui.theme.CodyTheme
+import com.termux.app.ui.theme.TextMuted
 import com.termux.app.web.WebViewActivity
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -84,6 +95,20 @@ class MainActivity : ComponentActivity() {
                 val viewModel: AppViewModel = viewModel()
                 val scope = rememberCoroutineScope()
                 var pendingDevice by remember { mutableStateOf<RemoteDevices.Device?>(null) }
+                var updateRelease by remember { mutableStateOf<AppUpdater.Release?>(null) }
+                var updateProgress by remember { mutableStateOf(-1) }
+
+                // Check at most once a day. Marking before the network call is deliberate: a slow or
+                // offline GitHub must not make every launch fire another request.
+                LaunchedEffect(Unit) {
+                    if (AppUpdater.shouldAutoCheck(this@MainActivity)) {
+                        AppUpdater.markChecked(this@MainActivity)
+                        val found = withContext(Dispatchers.IO) { AppUpdater.check(this@MainActivity) }
+                        if (found != null && AppUpdater.isNewer(found, this@MainActivity)) {
+                            updateRelease = found
+                        }
+                    }
+                }
 
                 // The chat IS the app. There is no home screen and no onboarding: a fresh install
                 // opens straight into the transcript, where the initialising state stands in until
@@ -127,6 +152,59 @@ class MainActivity : ComponentActivity() {
                             }) { Text("Connect") }
                         },
                         dismissButton = { TextButton(onClick = { pendingDevice = null }) { Text("Cancel") } },
+                    )
+                }
+
+                if (pendingDevice == null) updateRelease?.let { release ->
+                    AlertDialog(
+                        onDismissRequest = { updateRelease = null },
+                        title = { Text("Update available") },
+                        text = {
+                            Column {
+                                Text("Cody ${release.tag} is available.")
+                                if (release.notes.isNotBlank()) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        release.notes.take(600),
+                                        color = TextMuted,
+                                        fontSize = 12.sp,
+                                        modifier = Modifier.verticalScroll(rememberScrollState()),
+                                    )
+                                }
+                                if (updateProgress >= 0) {
+                                    Spacer(Modifier.height(8.dp))
+                                    Text("Downloading $updateProgress%", color = Accent)
+                                }
+                            }
+                        },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                updateRelease = null
+                                scope.launch {
+                                    val apk = withContext(Dispatchers.IO) {
+                                        AppUpdater.download(this@MainActivity, release) { pct ->
+                                            updateProgress = pct
+                                        }
+                                    }
+                                    updateProgress = -1
+                                    if (apk == null) {
+                                        Toast.makeText(
+                                            this@MainActivity, "Could not download the update", Toast.LENGTH_LONG,
+                                        ).show()
+                                    } else {
+                                        val started = withContext(Dispatchers.IO) {
+                                            AppUpdater.install(this@MainActivity, apk)
+                                        }
+                                        if (!started) {
+                                            Toast.makeText(
+                                                this@MainActivity, "Could not start the installer", Toast.LENGTH_LONG,
+                                            ).show()
+                                        }
+                                    }
+                                }
+                            }) { Text("Download & install") }
+                        },
+                        dismissButton = { TextButton(onClick = { updateRelease = null }) { Text("Later") } },
                     )
                 }
 

@@ -190,8 +190,12 @@ the entire Linux toolchain, on device, with no server and no account.
     opencode skills directory.
   - **Usage**: costs reported on replies, summed over 5 hours, 7 days and 30 days, plus a rough
     cost hint for the next prompt.
-  - **Updates and backup**: check GitHub releases and install an APK through the system installer;
-    export or restore one archive containing the container home, the workspace and app settings.
+  - **Updates and backup**: once a day on launch the app checks for a newer APK and offers a
+    dismissible download dialog. *More features → Updates* has an immediate check, an optional
+    direct APK URL, the repository to read releases from, and an auto-check switch. Installs go
+    through the system `PackageInstaller`, and its success or failure is reported back to the app.
+    Backup exports or restores one archive containing the container home, the workspace and app
+    settings.
 - **Terminal**: *Drawer → Terminal* opens a real terminal on the same proot session the chat runs on,
   with an extra-keys bar (Ctrl, Alt, Shift, Esc, Tab, arrows, Home/End, Ctrl+C/D/Z), font sizing and
   a Ctrl-C shortcut. It starts the **opencode TUI**, so it is the same agent in a raw interface.
